@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Shopping List</string>
+    <string name="delete_category">Delete category</string>
+    <string name="delete_category_confirm">Delete category and all its products?</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="category_has_products">This category contains products. Delete category and all its products?</string>
+</resources>

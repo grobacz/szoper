@@ -1,0 +1,41 @@
+# Gradle files
+.gradle/
+build/
+*/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log/OS files
+*.log
+
+# Android Studio files
+.idea/
+*.iml
+
+# Keystore files
+*.jks
+*.keystore
+
+# Miscellaneous
+.DS_Store
+*.swp
+
+# Generated files
+captures/
+output.json
+
+# Crashlytics and Fabric
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Google Services (remove if you want to share your config)
+google-services.json
+
+# APKs
+*.apk
+*.ap_
+*.jar
+*.zip
+
