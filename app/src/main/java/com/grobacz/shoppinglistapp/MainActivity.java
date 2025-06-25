@@ -62,6 +62,29 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothServerSocket serverSocket;
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    
+    // Permission request codes
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_PERMISSIONS = 2;
+    
+    // Permissions arrays
+    private static final String[] REQUIRED_PERMISSIONS;
+    
+    static {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            REQUIRED_PERMISSIONS = new String[]{
+                android.Manifest.permission.BLUETOOTH_SCAN,
+                android.Manifest.permission.BLUETOOTH_CONNECT,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            };
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            REQUIRED_PERMISSIONS = new String[]{
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            };
+        } else {
+            REQUIRED_PERMISSIONS = new String[0];
+        }
+    }
 
     private AppDatabase db;
     private ProductDao productDao;
@@ -96,6 +119,70 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         AppDatabase.checkDatabase(this);
         // Force reload categories and tabs
         runOnUiThread(this::loadCategoriesAndTabs);
+        
+        // Recheck permissions when returning to the app
+        if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
+    }
+    
+    /**
+     * Checks if all required permissions are granted and requests them if not
+     * @return true if all permissions are already granted, false otherwise
+     */
+    private boolean checkAndRequestPermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true; // No runtime permissions needed before Android 6.0
+        }
+        
+        List<String> permissionsToRequest = new ArrayList<>();
+        for (String permission : REQUIRED_PERMISSIONS) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(permission);
+            }
+        }
+        
+        if (!permissionsToRequest.isEmpty()) {
+            ActivityCompat.requestPermissions(
+                this,
+                permissionsToRequest.toArray(new String[0]),
+                REQUEST_PERMISSIONS
+            );
+            return false;
+        }
+        
+        return true;
+    }
+    
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
+        if (requestCode == REQUEST_PERMISSIONS) {
+            boolean allGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+            
+            if (!allGranted) {
+                Toast.makeText(this, "Bluetooth permissions are required for device discovery and connection", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+    
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode != RESULT_OK) {
+                Toast.makeText(this, "Bluetooth is required for this app", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     // Method to reset the database for testing
@@ -123,14 +210,25 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
 
         tabLayout = findViewById(R.id.tabLayout);
 
-        // Request BLUETOOTH_CONNECT permission at runtime for Android 12+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.BLUETOOTH_CONNECT}, 1001);
-            }
-        }
-
+        // Initialize Bluetooth adapter
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        
+        // Check if device supports Bluetooth
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "This device doesn't support Bluetooth", Toast.LENGTH_LONG).show();
+            return;
+        }
+        
+        // Request runtime permissions
+        if (!checkAndRequestPermissions()) {
+            return;
+        }
+        
+        // Ensure Bluetooth is enabled
+        if (!bluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
 
         // Initialize views
         recyclerView = findViewById(R.id.recyclerView);
