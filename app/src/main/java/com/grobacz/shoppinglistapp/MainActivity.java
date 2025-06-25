@@ -17,6 +17,7 @@ import android.os.Build;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.view.LayoutInflater;
 import android.util.Log;
@@ -296,19 +297,15 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
             this.updatePositionsCallback = updatePositionsCallback;
 
             // Set up ItemTouchHelper for drag and drop
-            ItemTouchHelper.Callback callback = new ItemTouchHelper.Callback() {
-                @Override
-                public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-                    int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN;
-                    int swipeFlags = ItemTouchHelper.START | ItemTouchHelper.END;
-                    return makeMovementFlags(dragFlags, swipeFlags);
-                }
-
+            ItemTouchHelper.SimpleCallback callback = new ItemTouchHelper.SimpleCallback(
+                ItemTouchHelper.UP | ItemTouchHelper.DOWN,
+                ItemTouchHelper.LEFT | ItemTouchHelper.RIGHT
+            ) {
                 @Override
                 public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
                     int fromPosition = source.getAdapterPosition();
                     int toPosition = target.getAdapterPosition();
-
+                    
                     if (fromPosition < toPosition) {
                         for (int i = fromPosition; i < toPosition; i++) {
                             Collections.swap(products, i, i + 1);
@@ -318,7 +315,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                             Collections.swap(products, i, i - 1);
                         }
                     }
-
+                    
                     // Update positions in the database by running the callback on the UI thread
                     if (updatePositionsCallback != null) {
                         activity.runOnUiThread(updatePositionsCallback);
@@ -329,53 +326,101 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                 }
 
                 @Override
+                public float getSwipeThreshold(@NonNull RecyclerView.ViewHolder viewHolder) {
+                    return 0.5f; // Swipe threshold at 50%
+                }
+
+
+
+                @Override
                 public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                    int position = viewHolder.getAdapterPosition();
-                    Product product = products.get(position);
-
+                    Log.d("SwipeDebug", "onSwiped called with direction: " + direction);
+                    final int position = viewHolder.getAdapterPosition();
+                    if (position == RecyclerView.NO_POSITION || position >= products.size()) {
+                        viewHolder.itemView.setTranslationX(0); // Reset position
+                        return;
+                    }
+                    
+                    final Product originalProduct = products.get(position);
+                    Log.d("SwipeDebug", "Original product: " + originalProduct.getName() + " qty: " + originalProduct.getQuantity());
+                    
+                    // Reset the view's position immediately to prevent it from being removed
+                    viewHolder.itemView.post(() -> {
+                        viewHolder.itemView.setTranslationX(0);
+                        viewHolder.itemView.setAlpha(1);
+                    });
+                    
                     if (direction == ItemTouchHelper.RIGHT) {
+                        Log.d("SwipeDebug", "Swipe RIGHT detected");
                         // Swipe right - decrease quantity or remove
-                        if (product.getQuantity() > 0) {
+                        if (originalProduct.getQuantity() > 1) {
                             // Decrease quantity
-                            Product updated = new Product(
-                                product.getName(),
-                                product.getQuantity() - 1,
-                                product.getCategoryId(),
+                            final int newQuantity = originalProduct.getQuantity() - 1;
+                            Log.d("SwipeDebug", "Decreasing quantity from " + originalProduct.getQuantity() + " to " + newQuantity);
+                            
+                            final Product updated = new Product(
+                                originalProduct.getName(),
+                                newQuantity,
+                                originalProduct.getCategoryId(),
                                 System.currentTimeMillis(),
-                                product.getPosition()
+                                originalProduct.getPosition()
                             );
-                            products.set(position, updated);
-                            notifyItemChanged(position);
-
-                            // Update in database
-                            Executors.newSingleThreadExecutor().execute(() -> {
-                                activity.productDao.insert(updated.toEntity());
+                            
+                            activity.runOnUiThread(() -> {
+                                if (position < products.size()) {
+                                    products.set(position, updated);
+                                    notifyItemChanged(position);
+                                    Log.d("SwipeDebug", "Item updated in UI. New qty: " + products.get(position).getQuantity());
+                                    
+                                    // Update in database
+                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                        activity.productDao.insert(updated.toEntity());
+                                        Log.d("SwipeDebug", "Database updated for " + updated.getName() + " qty: " + updated.getQuantity());
+                                    });
+                                }
                             });
                         } else {
-                            // Remove if quantity is already 0
-                            Product removed = products.remove(position);
-                            notifyItemRemoved(position);
-
-                            // Delete from database
-                            Executors.newSingleThreadExecutor().execute(() -> {
-                                activity.productDao.delete(removed.toEntity());
+                            // Remove if quantity is 1 or less
+                            Log.d("SwipeDebug", "Removing item " + originalProduct.getName());
+                            activity.runOnUiThread(() -> {
+                                if (position < products.size() && products.get(position).equals(originalProduct)) {
+                                    Product removed = products.remove(position);
+                                    notifyItemRemoved(position);
+                                    
+                                    // Delete from database
+                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                        activity.productDao.delete(removed.toEntity());
+                                        Log.d("SwipeDebug", "Item removed from database: " + removed.getName());
+                                    });
+                                }
                             });
                         }
                     } else if (direction == ItemTouchHelper.LEFT) {
+                        Log.d("SwipeDebug", "Swipe LEFT detected");
                         // Swipe left - increase quantity
-                        Product updated = new Product(
-                            product.getName(),
-                            product.getQuantity() + 1,
-                            product.getCategoryId(),
+                        final int newQuantity = originalProduct.getQuantity() + 1;
+                        Log.d("SwipeDebug", "Increasing quantity from " + originalProduct.getQuantity() + " to " + newQuantity);
+                        
+                        final Product updated = new Product(
+                            originalProduct.getName(),
+                            newQuantity,
+                            originalProduct.getCategoryId(),
                             System.currentTimeMillis(),
-                            product.getPosition()
+                            originalProduct.getPosition()
                         );
-                        products.set(position, updated);
-                        notifyItemChanged(position);
-
-                        // Update in database
-                        Executors.newSingleThreadExecutor().execute(() -> {
-                            activity.productDao.insert(updated.toEntity());
+                        
+                        activity.runOnUiThread(() -> {
+                            if (position < products.size()) {
+                                products.set(position, updated);
+                                notifyItemChanged(position);
+                                Log.d("SwipeDebug", "Item updated in UI. New qty: " + products.get(position).getQuantity());
+                                
+                                // Update in database
+                                Executors.newSingleThreadExecutor().execute(() -> {
+                                    activity.productDao.insert(updated.toEntity());
+                                    Log.d("SwipeDebug", "Database updated for " + updated.getName() + " qty: " + updated.getQuantity());
+                                });
+                            }
                         });
                     }
                 }
