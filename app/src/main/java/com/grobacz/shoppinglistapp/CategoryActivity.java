@@ -79,6 +79,11 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
     @NonNull
     @Override
     public View getView(int position, @Nullable View convertView, @NonNull ViewGroup parent) {
+        // Ensure the view is visible
+        if (convertView != null) {
+            convertView.setVisibility(View.VISIBLE);
+        }
+        
         Log.d("CategoryAdapter", "getView called for position: " + position);
         View itemView = convertView;
         ViewHolder holder;
@@ -122,7 +127,7 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
                         activity.runOnUiThread(() -> {
                             try {
                                 List<CategoryEntity> updatedList = categoryDao.getAll();
-                                Log.d("CategoryAdapter", "After deletion, got " + updatedList.size() + " categories");
+                                Log.d("CategoryActivity", "After deletion, got " + updatedList.size() + " categories");
                                 clear();
                                 addAll(updatedList);
                                 notifyDataSetChanged();
@@ -265,7 +270,6 @@ public class CategoryActivity extends AppCompatActivity {
 
         // Set up the adapter with the empty list first
         adapter = new CategoryAdapter(this, categoryList, categoryDao, productDao);
-        listView.setAdapter(adapter);
         
         // Set up drag handle touch listener
         dragHandleTouchListener = (v, event) -> {
@@ -284,135 +288,7 @@ public class CategoryActivity extends AppCompatActivity {
         // Set the listeners to the adapter
         adapter.setOnDragHandleTouchListener(dragHandleTouchListener);
         adapter.setOnItemLongClickListener(itemLongClickListener);
-        
-        // Set up drag listener for the list view
-        listView.setOnDragListener((v, event) -> {
-            View view = (View) event.getLocalState();
-            if (view == null) return false;
-            
-            // Get the background color for highlighting
-            int highlightColor = getResources().getColor(R.color.drag_target_background, getTheme());
-            
-            switch (event.getAction()) {
-                case DragEvent.ACTION_DRAG_STARTED:
-                    Log.d("CategoryActivity", "Drag started, view: " + view);
-                    // Store the original background color
-                    if (view.getTag(R.id.original_background) == null) {
-                        view.setTag(R.id.original_background, view.getBackground());
-                    }
-                    // Apply elevation to the dragged view for better visual feedback
-                    view.animate().scaleX(1.02f).scaleY(1.02f).setDuration(100);
-                    return true;
-                    
-                case DragEvent.ACTION_DRAG_LOCATION:
-                    // Get the current position under the drag location
-                    int x = (int) event.getX();
-                    int y = (int) event.getY();
-                    int position = listView.pointToPosition(x, y);
-                    
-                    // Highlight the position where the item would be dropped
-                    if (position != ListView.INVALID_POSITION) {
-                        // Reset all views first
-                        for (int i = 0; i < listView.getChildCount(); i++) {
-                            View child = listView.getChildAt(i);
-                            Object originalBg = child.getTag(R.id.original_background);
-                            if (originalBg != null) {
-                                child.setBackground((Drawable) originalBg);
-                            } else {
-                                child.setBackgroundColor(Color.TRANSPARENT);
-                            }
-                        }
-                        
-                        // Highlight the target position
-                        int firstVisible = listView.getFirstVisiblePosition();
-                        int childIndex = position - firstVisible;
-                        if (childIndex >= 0 && childIndex < listView.getChildCount()) {
-                            View targetView = listView.getChildAt(childIndex);
-                            if (targetView != null && position != draggedPosition) {
-                                targetView.setBackgroundColor(highlightColor);
-                            }
-                        }
-                    }
-                    return true;
-                    
-                case DragEvent.ACTION_DRAG_ENDED:
-                    Log.d("CategoryActivity", "Drag ended 1, draggedView: " + (draggedView != null));
-                    runOnUiThread(() -> {
-                        // Reset all views
-                        for (int i = 0; i < listView.getChildCount(); i++) {
-                            View child = listView.getChildAt(i);
-                            Object originalBg = child.getTag(R.id.original_background);
-                            if (originalBg != null) {
-                                child.setBackground((Drawable) originalBg);
-                            } else {
-                                child.setBackgroundColor(Color.TRANSPARENT);
-                            }
-                        }
-                        
-                        if (draggedView != null) {
-                            // Animate the view back to its original state
-                            draggedView.animate()
-                                .scaleX(1f)
-                                .scaleY(1f)
-                                .setDuration(100)
-                                .withEndAction(() -> {
-                                    if (draggedView != null) {
-                                        draggedView.setVisibility(View.VISIBLE);
-                                        draggedView = null;
-                                    }
-                                });
-                        }
-                    });
-                    return true;
-                    
-                case DragEvent.ACTION_DROP:
-                    Log.d("CategoryActivity", "Drop event, draggedPosition: " + draggedPosition);
-                    
-                    // Get the position where the drop occurred
-                    int xPos = (int) event.getX();
-                    int yPos = (int) event.getY();
-                    int targetPosition = listView.pointToPosition(xPos, yPos);
-                    
-                    Log.d("CategoryActivity", "Dropped at position: " + targetPosition + ", dragged from: " + draggedPosition);
-                    
-                    if (draggedView == null || draggedPosition == -1) {
-                        Log.w("CategoryActivity", "Invalid drop: no dragged view or position");
-                        return false;
-                    }
-                    
-                    if (targetPosition == ListView.INVALID_POSITION) {
-                        Log.w("CategoryActivity", "Invalid drop: invalid target position");
-                        return false;
-                    }
-                    
-                    if (targetPosition >= categoryList.size()) {
-                        targetPosition = categoryList.size() - 1;
-                    }
-                    
-                    if (draggedPosition != targetPosition) {
-                        handleItemMove(draggedPosition, targetPosition);
-                    } else {
-                        Log.d("CategoryActivity", "No position change, ignoring drop");
-                    }
-                    
-                    // Reset the dragged view's visibility and background
-                    runOnUiThread(() -> {
-                        if (draggedView != null) {
-                            Object originalBg = draggedView.getTag(R.id.original_background);
-                            if (originalBg != null) {
-                                draggedView.setBackground((Drawable) originalBg);
-                            }
-                            draggedView.setVisibility(View.VISIBLE);
-                            draggedView = null;
-                        }
-                    });
-                    
-                    return true;
-                    
-                default:
-                    return false;
-            }
-        });
+        listView.setAdapter(adapter);
         
         // Initialize vibrator for haptic feedback
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
@@ -496,7 +372,7 @@ public class CategoryActivity extends AppCompatActivity {
                         } else {
                             view.startDrag(null, shadowBuilder, view, 0);
                         }
-                        view.setVisibility(View.INVISIBLE);
+                        view.setAlpha(0.5f);
                         return true;
                     } catch (Exception e) {
                         Log.e("CategoryActivity", "Error starting drag: " + e.getMessage(), e);
@@ -537,7 +413,7 @@ public class CategoryActivity extends AppCompatActivity {
                     } else {
                         v.startDrag(null, shadowBuilder, v, 0);
                     }
-                    v.setVisibility(View.INVISIBLE);
+                    v.setAlpha(0.5f);
                     return true;
                 } catch (Exception e) {
                     Log.e("CategoryActivity", "Error starting drag (long press): " + e.getMessage(), e);
@@ -554,193 +430,75 @@ public class CategoryActivity extends AppCompatActivity {
         adapter.setOnItemLongClickListener(itemLongClickListener);
         listView.setAdapter(adapter);
         
+        // Set up drag and drop listener for the list view
         listView.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
-                View view = (View) event.getLocalState();
-                Log.d("CategoryActivity", "Drag event: " + eventToString(event.getAction()) + ", view: " + view);
+                final int action = event.getAction();
+                Log.d("CategoryActivity", "onDrag: " + eventToString(action));
                 
-                // Get the background color for highlighting
-                int highlightColor = getResources().getColor(R.color.drag_target_background, getTheme());
-                
-                switch (event.getAction()) {
+                switch (action) {
                     case DragEvent.ACTION_DRAG_STARTED:
-                        Log.d("CategoryActivity", "Drag started, view: " + view);
-                        if (view == null) {
-                            return false;
-                        }
-                        // Apply elevation to the dragged view for better visual feedback
-                        view.animate().scaleX(1.02f).scaleY(1.02f).setDuration(100);
+                        // Return true to continue receiving drag events
                         return true;
                         
                     case DragEvent.ACTION_DRAG_ENTERED:
-                        Log.d("CategoryActivity", "Drag entered: " + v.getTag(R.id.tag_position));
-                        if (view != v) {  // Don't highlight the view being dragged
-                            v.setBackgroundColor(highlightColor);
-                            // Add a subtle elevation to the target view
-                            v.setElevation(8f);
-                            v.invalidate();
-                        }
-                        return true;
-                        
-                    case DragEvent.ACTION_DRAG_LOCATION:
-                        // Get the current position under the drag location
-                        int x = (int) event.getX();
-                        int y = (int) event.getY();
-                        int position = listView.pointToPosition(x, y);
-                        Log.d("CategoryActivity", "Drag location - x: " + x + ", y: " + y + ", position: " + position);
+                        // No visual change needed when drag enters
                         return true;
                         
                     case DragEvent.ACTION_DRAG_EXITED:
-                        Log.d("CategoryActivity", "Drag exited: " + v.getTag(R.id.tag_position));
-                        v.setBackgroundColor(Color.TRANSPARENT);
-                        v.setElevation(0f);
-                        v.invalidate();
+                        // No visual change needed when drag exits
                         return true;
+                        
+                    case DragEvent.ACTION_DRAG_LOCATION: {
+                        // Get the position of the item under the drag location
+                        int x = (int) event.getX();
+                        int y = (int) event.getY();
+                        int position = listView.pointToPosition(x, y);
+                        
+                        if (position != AdapterView.INVALID_POSITION && draggedPosition != position) {
+                            // Handle the item move
+                            handleItemMove(draggedPosition, position);
+                            draggedPosition = position;
+                        }
+                        return true;
+                    }
+                        
+                    case DragEvent.ACTION_DROP: {
+                        // Get the position where the item was dropped
+                        int x = (int) event.getX();
+                        int y = (int) event.getY();
+                        int position = listView.pointToPosition(x, y);
+                        
+                        if (position != AdapterView.INVALID_POSITION) {
+                            // Handle the final drop
+                            handleItemMove(draggedPosition, position);
+                        }
+                        
+                        // Reset the dragged view's alpha
+                        if (draggedView != null) {
+                            draggedView.setAlpha(1.0f);
+                            draggedView = null;
+                        }
+                        return true;
+                    }
                         
                     case DragEvent.ACTION_DRAG_ENDED:
-                        Log.d("CategoryActivity", "Drag ended 2, draggedView: " + (draggedView != null));
-                        runOnUiThread(() -> {
-                            if (draggedView != null) {
-                                // Animate the view back to its original state
-                                draggedView.animate()
-                                    .scaleX(1f)
-                                    .scaleY(1f)
-                                    .setDuration(100)
-                                    .withEndAction(() -> {
-                                        if (draggedView != null) {
-                                            draggedView.setVisibility(View.VISIBLE);
-                                            draggedView = null;
-                                        }
-                                    });
-                            }
-                            // Reset all views in the list
-                            for (int i = 0; i < listView.getChildCount(); i++) {
-                                View child = listView.getChildAt(i);
-                                child.setBackgroundColor(Color.TRANSPARENT);
-                                child.setElevation(0f);
-                            }
-                        });
-                        draggedPosition = -1;
+                        // Reset the dragged view's alpha if the drag was cancelled
+                        if (draggedView != null) {
+                            draggedView.setAlpha(1.0f);
+                            draggedView = null;
+                        }
                         return true;
-                        
-                    case DragEvent.ACTION_DROP:
-                        Log.d("CategoryActivity", "Drop event, draggedPosition: " + draggedPosition);
-                        
-                        // Get the position where the drop occurred
-                        int xPos = (int) event.getX();
-                        int yPos = (int) event.getY();
-                        int targetPosition = listView.pointToPosition(xPos, yPos);
-                        
-                        Log.d("CategoryActivity", "Dropped at position: " + targetPosition + ", dragged from: " + draggedPosition);
-                        
-                        if (draggedView == null || draggedPosition == -1) {
-                            Log.w("CategoryActivity", "Invalid drop: no dragged view or position");
-                            return false;
-                        }
-                        
-                        if (targetPosition == ListView.INVALID_POSITION) {
-                            Log.w("CategoryActivity", "Invalid drop: invalid target position");
-                            return false;
-                        }
-                        
-                        if (targetPosition >= categoryList.size()) {
-                            targetPosition = categoryList.size() - 1;
-                        }
-                        
-                        if (draggedPosition != targetPosition) {
-                            try {
-                                // Create a new list to avoid concurrent modification
-                                List<CategoryEntity> newList = new ArrayList<>(categoryList);
-                                
-                                // Get the item being moved
-                                CategoryEntity draggedItem = newList.get(draggedPosition);
-                                Log.d("CategoryActivity", "Moving category: " + draggedItem.getName() + 
-                                      " from " + draggedPosition + " to " + targetPosition);
-                                
-                                // Remove from old position and add to new position
-                                newList.remove(draggedPosition);
-                                // Adjust target position if we removed an item before the target
-                                if (targetPosition > draggedPosition) {
-                                    targetPosition--;
-                                }
-                                newList.add(targetPosition, draggedItem);
-                                
-                                // Update the local list with the new order
-                                Log.d("CategoryActivity", "Updating categoryList with new order");
-                                synchronized (categoryList) {
-                                    categoryList.clear();
-                                    categoryList.addAll(newList);
-                                }
-                                Log.d("CategoryActivity", "categoryList has " + categoryList.size() + " items");
-                                
-                                // Update positions in the database on a background thread
-                                new Thread(() -> {
-                                    try {
-                                        for (int i = 0; i < categoryList.size(); i++) {
-                                            CategoryEntity item = categoryList.get(i);
-                                            if (item.getPosition() != i) {
-                                                Log.d("CategoryActivity", "Updating position for " + item.getName() + 
-                                                      " to " + i);
-                                                item.setPosition(i);
-                                                categoryDao.updatePosition(item.getId(), i);
-                                            }
-                                        }
-                                        Log.d("CategoryActivity", "Positions updated in database");
-                                    } catch (Exception e) {
-                                        Log.e("CategoryActivity", "Error updating positions: " + e.getMessage(), e);
-                                        runOnUiThread(() -> 
-                                            Toast.makeText(CategoryActivity.this, "Error updating positions", Toast.LENGTH_SHORT).show());
-                                    }
-                                }).start();
-                                
-                                // Update the UI on the main thread
-                                runOnUiThread(() -> {
-                                    try {
-                                        // Create a new list for the adapter to avoid clearing the original list
-                                        List<CategoryEntity> adapterList = new ArrayList<>(categoryList);
-                                        adapter.clear();
-                                        adapter.addAll(adapterList);
-                                        adapter.notifyDataSetChanged();
-                                        Log.d("CategoryActivity", "Adapter updated with new positions, item count: " + adapter.getCount());
-                                    } catch (Exception e) {
-                                        Log.e("CategoryActivity", "Error updating adapter: " + e.getMessage(), e);
-                                    }
-                                });
-                                
-                            } catch (Exception e) {
-                                Log.e("CategoryActivity", "Error during drop: " + e.getMessage(), e);
-                                runOnUiThread(() -> 
-                                    Toast.makeText(CategoryActivity.this, "Error moving category", Toast.LENGTH_SHORT).show());
-                                return false;
-                            }
-                        } else {
-                            Log.d("CategoryActivity", "No position change, ignoring drop");
-                        }
-                        
-                        // Reset the dragged view's visibility
-                        runOnUiThread(() -> {
-                            if (draggedView != null) {
-                                draggedView.setVisibility(View.VISIBLE);
-                                draggedView = null;
-                            }
-                            // Reset all backgrounds
-                            for (int i = 0; i < listView.getChildCount(); i++) {
-                                View child = listView.getChildAt(i);
-                                child.setBackgroundColor(Color.TRANSPARENT);
-                                child.setElevation(0f);
-                            }
-                        });
-                        
-                        return true;
-                        
-                    default:
-                        Log.d("CategoryActivity", "Unhandled drag event: " + event.getAction());
-                        return false;
                 }
+                
+                return false;
             }
         });
+        
     }
+
+    private ListView listView; // Add this line at the top with other fields
 
     private void hideInputBar(LinearLayout inputBar, EditText editText) {
         inputBar.animate()
@@ -748,7 +506,6 @@ public class CategoryActivity extends AppCompatActivity {
             .setDuration(200)
             .withEndAction(() -> {
                 inputBar.setVisibility(View.GONE);
-                // Hide keyboard
                 InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
                 imm.hideSoftInputFromWindow(editText.getWindowToken(), 0);
                 editText.clearFocus();
@@ -764,7 +521,6 @@ public class CategoryActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     editText.setText("");
                     refreshList(listView);
-                    // Hide the input bar with animation
                     hideInputBar(inputBar, editText);
                 });
             }).start();
@@ -788,7 +544,7 @@ public class CategoryActivity extends AppCompatActivity {
                 } else {
                     view.startDrag(null, shadowBuilder, view, 0);
                 }
-                view.setVisibility(View.INVISIBLE);
+                view.setAlpha(0.5f);
             } catch (Exception e) {
                 Log.e("CategoryActivity", "Error starting drag: " + e.getMessage(), e);
             }
@@ -797,12 +553,12 @@ public class CategoryActivity extends AppCompatActivity {
         }
     }
     
-    private ListView listView; // Add this line at the top with other fields
-    
     private void handleItemMove(int fromPosition, int toPosition) {
         Log.d("CategoryActivity", "handleItemMove from " + fromPosition + " to " + toPosition);
-        if (fromPosition < 0 || fromPosition >= categoryList.size() || toPosition < 0 || toPosition >= categoryList.size()) {
-            Log.e("CategoryActivity", "Invalid positions: from=" + fromPosition + ", to=" + toPosition);
+        if (fromPosition < 0 || fromPosition >= categoryList.size() || 
+            toPosition < 0 || toPosition >= categoryList.size() || 
+            fromPosition == toPosition) {
+            Log.d("CategoryActivity", "No position change needed: from=" + fromPosition + ", to=" + toPosition);
             return;
         }
         
@@ -822,6 +578,18 @@ public class CategoryActivity extends AppCompatActivity {
         categoryList.clear();
         categoryList.addAll(updatedList);
         
+        // Immediately update the UI
+        runOnUiThread(() -> {
+            if (adapter != null) {
+                adapter.clear();
+                adapter.addAll(updatedList);
+                adapter.notifyDataSetChanged();
+                
+                // Ensure the moved item is visible
+                listView.smoothScrollToPosition(toPosition);
+            }
+        });
+        
         // Update positions in the database on a background thread
         new Thread(() -> {
             try {
@@ -835,79 +603,10 @@ public class CategoryActivity extends AppCompatActivity {
                     }
                 }
                 Log.d("CategoryActivity", "All positions updated in database");
-                
-                // Get the updated list from the database to ensure consistency
-                final List<CategoryEntity> freshList = categoryDao.getAll();
-                
-                // Update UI on the main thread
-                runOnUiThread(() -> {
-                    try {
-                        if (adapter != null) {
-                            // Update the main list with fresh data from the database
-                            categoryList.clear();
-                            categoryList.addAll(freshList);
-                            
-                            // Update the adapter
-                            adapter.clear();
-                            adapter.addAll(freshList);
-                            adapter.notifyDataSetChanged();
-                            
-                            Log.d("CategoryActivity", "Adapter updated with fresh list, size: " + freshList.size());
-                            
-                            // Force a layout refresh
-                            listView.invalidateViews();
-                            
-                            // Ensure the list is visible
-                            listView.setVisibility(View.VISIBLE);
-                            if (listView.getEmptyView() != null) {
-                                listView.getEmptyView().setVisibility(View.GONE);
-                            }
-                        } else {
-                            Log.e("CategoryActivity", "Adapter is null in handleItemMove");
-                        }
-                    } catch (Exception e) {
-                        Log.e("CategoryActivity", "Error updating adapter: " + e.getMessage(), e);
-                        // If there's an error, try to refresh the list
-                        refreshList(listView);
-                    }
-                });
             } catch (Exception e) {
                 Log.e("CategoryActivity", "Error updating category positions: " + e.getMessage(), e);
-                runOnUiThread(() -> {
-                    Toast.makeText(CategoryActivity.this, "Error updating positions: " + e.getMessage(), 
-                        Toast.LENGTH_SHORT).show();
-                    // If there's an error, try to refresh the list
-                    refreshList(listView);
-                });
             }
         }).start();
-    }
-    
-    // Helper method to dump view hierarchy for debugging
-    private void dumpViewHierarchy(ViewGroup root, int depth) {
-        if (root == null) return;
-        
-        StringBuilder indent = new StringBuilder();
-        for (int i = 0; i < depth; i++) {
-            indent.append("  ");
-        }
-        
-        Log.d("ViewHierarchy", indent.toString() + root.getClass().getSimpleName() + 
-            " [" + root.getWidth() + "x" + root.getHeight() + 
-            "] visibility: " + (root.getVisibility() == View.VISIBLE ? "VISIBLE" : 
-                               (root.getVisibility() == View.INVISIBLE ? "INVISIBLE" : "GONE")));
-        
-        for (int i = 0; i < root.getChildCount(); i++) {
-            View child = root.getChildAt(i);
-            if (child instanceof ViewGroup) {
-                dumpViewHierarchy((ViewGroup) child, depth + 1);
-            } else {
-                Log.d("ViewHierarchy", indent.toString() + "  " + child.getClass().getSimpleName() + 
-                    " [" + child.getWidth() + "x" + child.getHeight() + 
-                    "] visibility: " + (child.getVisibility() == View.VISIBLE ? "VISIBLE" : 
-                                       (child.getVisibility() == View.INVISIBLE ? "INVISIBLE" : "GONE")));
-            }
-        }
     }
     
     private void checkDatabaseContents() {
