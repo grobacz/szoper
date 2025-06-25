@@ -20,7 +20,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.view.LayoutInflater;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -334,7 +333,6 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
 
                 @Override
                 public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                    Log.d("SwipeDebug", "onSwiped called with direction: " + direction);
                     final int position = viewHolder.getAdapterPosition();
                     if (position == RecyclerView.NO_POSITION || position >= products.size()) {
                         viewHolder.itemView.setTranslationX(0); // Reset position
@@ -342,7 +340,6 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     }
                     
                     final Product originalProduct = products.get(position);
-                    Log.d("SwipeDebug", "Original product: " + originalProduct.getName() + " qty: " + originalProduct.getQuantity());
                     
                     // Reset the view's position immediately to prevent it from being removed
                     viewHolder.itemView.post(() -> {
@@ -351,12 +348,10 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     });
                     
                     if (direction == ItemTouchHelper.RIGHT) {
-                        Log.d("SwipeDebug", "Swipe RIGHT detected");
-                        // Swipe right - decrease quantity or remove
+                        // Swipe right - decrease quantity, cross out, or remove
                         if (originalProduct.getQuantity() > 1) {
                             // Decrease quantity
                             final int newQuantity = originalProduct.getQuantity() - 1;
-                            Log.d("SwipeDebug", "Decreasing quantity from " + originalProduct.getQuantity() + " to " + newQuantity);
                             
                             final Product updated = new Product(
                                 originalProduct.getName(),
@@ -370,18 +365,36 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                                 if (position < products.size()) {
                                     products.set(position, updated);
                                     notifyItemChanged(position);
-                                    Log.d("SwipeDebug", "Item updated in UI. New qty: " + products.get(position).getQuantity());
                                     
                                     // Update in database
                                     Executors.newSingleThreadExecutor().execute(() -> {
                                         activity.productDao.insert(updated.toEntity());
-                                        Log.d("SwipeDebug", "Database updated for " + updated.getName() + " qty: " + updated.getQuantity());
+                                    });
+                                }
+                            });
+                        } else if (originalProduct.getQuantity() == 1) {
+                            // Set quantity to 0 and cross out
+                            final Product updated = new Product(
+                                originalProduct.getName(),
+                                0,
+                                originalProduct.getCategoryId(),
+                                System.currentTimeMillis(),
+                                originalProduct.getPosition()
+                            );
+                            
+                            activity.runOnUiThread(() -> {
+                                if (position < products.size()) {
+                                    products.set(position, updated);
+                                    notifyItemChanged(position);
+                                    
+                                    // Update in database
+                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                        activity.productDao.insert(updated.toEntity());
                                     });
                                 }
                             });
                         } else {
-                            // Remove if quantity is 1 or less
-                            Log.d("SwipeDebug", "Removing item " + originalProduct.getName());
+                            // Remove if quantity is already 0
                             activity.runOnUiThread(() -> {
                                 if (position < products.size() && products.get(position).equals(originalProduct)) {
                                     Product removed = products.remove(position);
@@ -390,16 +403,13 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                                     // Delete from database
                                     Executors.newSingleThreadExecutor().execute(() -> {
                                         activity.productDao.delete(removed.toEntity());
-                                        Log.d("SwipeDebug", "Item removed from database: " + removed.getName());
                                     });
                                 }
                             });
                         }
                     } else if (direction == ItemTouchHelper.LEFT) {
-                        Log.d("SwipeDebug", "Swipe LEFT detected");
                         // Swipe left - increase quantity
                         final int newQuantity = originalProduct.getQuantity() + 1;
-                        Log.d("SwipeDebug", "Increasing quantity from " + originalProduct.getQuantity() + " to " + newQuantity);
                         
                         final Product updated = new Product(
                             originalProduct.getName(),
@@ -413,12 +423,10 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                             if (position < products.size()) {
                                 products.set(position, updated);
                                 notifyItemChanged(position);
-                                Log.d("SwipeDebug", "Item updated in UI. New qty: " + products.get(position).getQuantity());
                                 
                                 // Update in database
                                 Executors.newSingleThreadExecutor().execute(() -> {
                                     activity.productDao.insert(updated.toEntity());
-                                    Log.d("SwipeDebug", "Database updated for " + updated.getName() + " qty: " + updated.getQuantity());
                                 });
                             }
                         });
@@ -607,14 +615,8 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     category.setPosition(i);
                     categoryDao.update(category);
                 }
-                
-                // Verify the order in the database
-                List<CategoryEntity> updatedCategories = categoryDao.getAll();
-                for (CategoryEntity cat : updatedCategories) {
-                    Log.d("CategoryPositions", "Category: " + cat.getName() + " Position: " + cat.getPosition());
-                }
             } catch (Exception e) {
-                Log.e("MainActivity", "Error updating category positions: " + e.getMessage(), e);
+                e.printStackTrace();
                 // If there's an error, reload categories to ensure consistency
                 runOnUiThread(this::loadCategoriesAndTabs);
             }
@@ -698,7 +700,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     }
                 });
             } catch (Exception e) {
-                Log.e("MainActivity", "Error loading categories: " + e.getMessage(), e);
+                e.printStackTrace();
                 // If there's an error, try to recover by resetting the category order
                 runOnUiThread(this::resetCategoryOrder);
             }
@@ -720,7 +722,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     categoryDao.update(category);
                 }
             } catch (Exception e) {
-                Log.e("MainActivity", "Error resetting category order: " + e.getMessage(), e);
+                e.printStackTrace();
             }
         });
     }
