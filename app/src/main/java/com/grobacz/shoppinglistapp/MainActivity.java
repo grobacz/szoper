@@ -1,7 +1,11 @@
 package com.grobacz.shoppinglistapp;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.List; // Needed for List usage
-
+import android.view.Menu;
+import android.view.MenuItem;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
@@ -16,52 +20,39 @@ import android.os.Handler;
 import android.os.Message;
 import android.view.LayoutInflater;
 import android.util.Log;
-import android.view.ViewGroup;
-import android.view.Menu;
-import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.DividerItemDecoration;
+import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.tabs.TabLayout;
+import com.grobacz.shoppinglistapp.CategoryTabLayout;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.util.ArrayList;
-import java.util.UUID;
 import com.grobacz.shoppinglistapp.Product;
 
-import androidx.room.Room;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity {
+import androidx.room.Room;
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Check database state
-        AppDatabase.checkDatabase(this);
-        // Force reload categories and tabs
-        runOnUiThread(this::loadCategoriesAndTabs);
-    }
-    
-    // Method to reset the database for testing
-    public static void resetDatabase(android.content.Context context) {
-        android.util.Log.d("AppDatabase", "Resetting database...");
-        context.deleteDatabase("shopping_list_database");
-        // Reset the singleton instance
-        AppDatabaseSingleton.resetInstance();
-        android.util.Log.d("AppDatabase", "Database reset complete");
-    }
+public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSelectedListener {
+    // Interface moved to separate file
 
     private RecyclerView recyclerView;
     private ProductAdapter adapter;
@@ -79,11 +70,53 @@ public class MainActivity extends AppCompatActivity {
     private java.util.List<CategoryEntity> categories;
     private int selectedCategoryId = -1;
 
+    @Override
+    public void onTabSelected(TabLayout.Tab tab) {
+        Object tag = tab.getTag();
+        if (tag != null) {
+            selectedCategoryId = (int) tag;
+            loadProductsForCategory(selectedCategoryId);
+        }
+    }
+
+    @Override
+    public void onTabUnselected(TabLayout.Tab tab) {
+        // Not used
+    }
+
+    @Override
+    public void onTabReselected(TabLayout.Tab tab) {
+        // Not used
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Check database state
+        AppDatabase.checkDatabase(this);
+        // Force reload categories and tabs
+        runOnUiThread(this::loadCategoriesAndTabs);
+    }
+
+    // Method to reset the database for testing
+    public static void resetDatabase(android.content.Context context) {
+        android.util.Log.d("AppDatabase", "Resetting database...");
+        context.deleteDatabase("shopping_list_database");
+        // Reset the singleton instance
+        AppDatabaseSingleton.resetInstance();
+        android.util.Log.d("AppDatabase", "Database reset complete");
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Initialize database
+        db = AppDatabaseSingleton.getInstance(getApplicationContext());
+        productDao = db.productDao();
+        categoryDao = db.categoryDao();
+
         if (getSupportActionBar() != null) {
             getSupportActionBar().hide();
         }
@@ -99,68 +132,25 @@ public class MainActivity extends AppCompatActivity {
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
-        db = AppDatabaseSingleton.getInstance(getApplicationContext());
-        productDao = db.productDao();
-        categoryDao = db.categoryDao();
-        productList = new ArrayList<>();
-        adapter = new ProductAdapter(productList);
-
-        loadCategoriesAndTabs();
-
+        // Initialize views
         recyclerView = findViewById(R.id.recyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        recyclerView.setAdapter(adapter);
-
-        // Attach ItemTouchHelper for swipe gesture
-        androidx.recyclerview.widget.ItemTouchHelper itemTouchHelper = new androidx.recyclerview.widget.ItemTouchHelper(
-                new androidx.recyclerview.widget.ItemTouchHelper.SimpleCallback(0, androidx.recyclerview.widget.ItemTouchHelper.RIGHT | androidx.recyclerview.widget.ItemTouchHelper.LEFT) {
-            @Override
-            public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder, @NonNull RecyclerView.ViewHolder target) {
-                return false;
-            }
-
-            @Override
-            public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
-                int position = viewHolder.getAdapterPosition();
-                Product product = productList.get(position);
-                if (direction == androidx.recyclerview.widget.ItemTouchHelper.RIGHT) {
-                    if (product.getQuantity() > 0) {
-                        // Decrement quantity
-                        Product updated = new Product(product.getName(), product.getQuantity() - 1, product.getCategoryId());
-                        updated.updateLastModified();
-                        productList.set(position, updated);
-                        adapter.notifyItemChanged(position);
-                        // Update in DB
-                        Executors.newSingleThreadExecutor().execute(() -> {
-                            // Always update the product in DB, even if quantity is 0
-                            productDao.insert(updated.toEntity());
-                        });
-                    } else {
-                        // Remove if already 0
-                        Product removed = productList.remove(position);
-                        adapter.notifyItemRemoved(position);
-                        // Remove from DB
-                        Executors.newSingleThreadExecutor().execute(() -> {
-                            productDao.deleteByName(removed.getName());
-                        });
-                    }
-                } else if (direction == androidx.recyclerview.widget.ItemTouchHelper.LEFT) {
-                    // Increment quantity
-                    Product updated = new Product(product.getName(), product.getQuantity() + 1, product.getCategoryId());
-                    updated.updateLastModified();
-                    productList.set(position, updated);
-                    adapter.notifyItemChanged(position);
-                    // Update in DB
-                    Executors.newSingleThreadExecutor().execute(() -> {
-                        productDao.insert(updated.toEntity());
-                    });
-                }
-            }
-        });
-        itemTouchHelper.attachToRecyclerView(recyclerView);
-
         fabAdd = findViewById(R.id.fabAdd);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        productList = new ArrayList<>();
+        adapter = new ProductAdapter(this, productList, this::updateProductPositions);
+        recyclerView.setAdapter(adapter);
+        
+        // Add divider between items
+        DividerItemDecoration dividerItemDecoration = new DividerItemDecoration(recyclerView.getContext(),
+                DividerItemDecoration.VERTICAL);
+        recyclerView.addItemDecoration(dividerItemDecoration);
+
+        // Set up FAB click listener
         fabAdd.setOnClickListener(v -> showAddProductDialog());
+
+        // Load categories and set up tab selection
+        // Set up tab layout
+        tabLayout.addOnTabSelectedListener(this);
 
         fabBurger = findViewById(R.id.fabBurger);
         fabBurger.setOnClickListener(v -> {
@@ -170,55 +160,73 @@ public class MainActivity extends AppCompatActivity {
             popup.show();
         });
 
-        tabLayout.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
-                int pos = tab.getPosition();
-                if (categories != null && pos < categories.size()) {
-                    selectedCategoryId = categories.get(pos).id;
-                    loadProductsForCategory(selectedCategoryId);
-                }
-            }
-            @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
-            @Override public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
-        });
-
         // Start Bluetooth server thread
         new Thread(this::startServer).start();
     }
 
     private void showAddProductDialog() {
         if (selectedCategoryId == -1) {
-            Toast.makeText(this, "Select a category first", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Please select a category first", Toast.LENGTH_SHORT).show();
             return;
         }
-        BottomSheetDialog dialog = new BottomSheetDialog(this);
-        View view = LayoutInflater.from(this).inflate(R.layout.dialog_add_product, null);
 
-        EditText editTextName = view.findViewById(R.id.etProductName);
-        EditText editTextQuantity = view.findViewById(R.id.etQuantity);
-        ImageButton btnAdd = view.findViewById(R.id.btnAdd);
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_product, null);
+        dialog.setContentView(dialogView);
+
+        EditText etProductName = dialogView.findViewById(R.id.etProductName);
+        EditText etQuantity = dialogView.findViewById(R.id.etQuantity);
+        ImageButton btnAdd = dialogView.findViewById(R.id.btnAdd);
 
         btnAdd.setOnClickListener(v -> {
-            String name = editTextName.getText().toString().trim();
-            String quantityStr = editTextQuantity.getText().toString().trim();
+            String productName = etProductName.getText().toString().trim();
+            String quantityStr = etQuantity.getText().toString().trim();
             int quantity = quantityStr.isEmpty() ? 1 : Integer.parseInt(quantityStr);
-            if (!name.isEmpty()) {
-                // Create product with current timestamp
-                Product product = new Product(name, quantity, selectedCategoryId);
-                product.updateLastModified();
+
+            if (!productName.isEmpty()) {
+                // Get next position for the product in this category
+                int nextPosition = 0;
+                if (!productList.isEmpty()) {
+                    nextPosition = productList.get(productList.size() - 1).getPosition() + 1;
+                }
+
+                // Create and add the product
+                Product product = new Product(
+                    productName,
+                    quantity,
+                    selectedCategoryId,
+                    System.currentTimeMillis(),
+                    nextPosition
+                );
+
                 productList.add(product);
                 adapter.notifyItemInserted(productList.size() - 1);
-                // Save to database
+
+                // Insert into database
                 Executors.newSingleThreadExecutor().execute(() -> {
-                    ProductEntity entity = product.toEntity();
-                    productDao.insert(entity);
+                    productDao.insert(product.toEntity());
                 });
+
+                dialog.dismiss();
+            } else {
+                Toast.makeText(this, "Please enter a product name", Toast.LENGTH_SHORT).show();
             }
-            dialog.dismiss();
-        }); 
-        dialog.setContentView(view);
+        });
+
         dialog.show();
+    }
+
+    private void updateProductPositions() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            for (int i = 0; i < adapter.products.size(); i++) {
+                Product product = adapter.products.get(i);
+                ProductEntity entity = productDao.getByName(product.getName());
+                if (entity != null) {
+                    entity.setPosition(i);
+                    productDao.update(entity);
+                }
+            }
+        });
     }
 
     private void startServer() {
@@ -233,113 +241,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductViewHolder> {
-        private final ArrayList<Product> products;
 
-        ProductAdapter(ArrayList<Product> products) {
-            this.products = products;
-        }
-
-        @NonNull
-        @Override
-        public ProductViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_product, parent, false);
-            return new ProductViewHolder(view);
-        }
-
-        @Override
-        public void onBindViewHolder(@NonNull ProductViewHolder holder, int position) {
-            Product product = products.get(position);
-            holder.txtProductName.setText(product.getName());
-            holder.txtQuantity.setText(String.valueOf(product.getQuantity()));
-            // Strikethrough if quantity is 0
-            if (product.getQuantity() == 0) {
-                holder.txtProductName.setPaintFlags(holder.txtProductName.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
-                holder.txtQuantity.setPaintFlags(holder.txtQuantity.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
-            } else {
-                holder.txtProductName.setPaintFlags(holder.txtProductName.getPaintFlags() & (~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG));
-                holder.txtQuantity.setPaintFlags(holder.txtQuantity.getPaintFlags() & (~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG));
-            }
-        }
-
-        @Override
-        public int getItemCount() {
-            return products.size();
-        }
-
-        class ProductViewHolder extends RecyclerView.ViewHolder {
-            TextView txtProductName;
-            TextView txtQuantity;
-            ProductViewHolder(@NonNull View itemView) {
-                super(itemView);
-                txtProductName = itemView.findViewById(R.id.txtProductName);
-                txtQuantity = itemView.findViewById(R.id.txtQuantity);
-            }
-        }
-    }
-
-    // BluetoothHandler inner class, now properly nested inside MainActivity
-    private class BluetoothHandler implements Runnable {
-        private final BluetoothSocket socket;
-        private ObjectOutputStream outputStream;
-        private ObjectInputStream inputStream;
-
-        BluetoothHandler(BluetoothSocket socket) {
-            this.socket = socket;
-            try {
-                outputStream = new ObjectOutputStream(socket.getOutputStream());
-                inputStream = new ObjectInputStream(socket.getInputStream());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            try {
-                // 1. Prepare data to send
-                List<CategoryEntity> categoryList = categoryDao.getAll();
-                List<ProductEntity> productEntities = productDao.getAll();
-                List<Product> productList = new ArrayList<>();
-                for (ProductEntity entity : productEntities) {
-                    productList.add(Product.fromEntity(entity));
-                }
-                SyncData syncData = new SyncData(categoryList, productList);
-
-                // 2. Send SyncData
-                outputStream.writeObject(syncData);
-
-                // 3. Receive SyncData
-                SyncData receivedData = (SyncData) inputStream.readObject();
-
-                // 4. Synchronize categories first
-                Executors.newSingleThreadExecutor().execute(() -> {
-                    for (CategoryEntity cat : receivedData.categories) {
-                        if (categoryDao.getByName(cat.name) == null) {
-                            categoryDao.insert(cat);
-                        }
-                    }
-                    // 5. Synchronize products (with category relationship)
-                    for (Product prod : receivedData.products) {
-                        if (productDao.getByName(prod.getName()) == null) {
-                            // Map category name to local categoryId if needed
-                            CategoryEntity localCat = categoryDao.getById(prod.getCategoryId());
-                            if (localCat != null) {
-                                prod.setCategoryId(localCat.id);
-                            }
-                            // Convert Product to ProductEntity before inserting
-                            ProductEntity prodEntity = prod.toEntity();
-                            productDao.insert(prodEntity); // productDao.insert expects ProductEntity
-                        }
-                    }
-                    // 6. Update UI as needed
-                    runOnUiThread(() -> adapter.notifyDataSetChanged());
-                });
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
-    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -351,7 +253,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
-        
+
         if (id == R.id.action_sync) {
             showSyncDialog();
             return true;
@@ -381,28 +283,399 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private static class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductViewHolder> {
+        private final ArrayList<Product> products;
+        private final ItemTouchHelper itemTouchHelper;
+        private final MainActivity activity;
+
+        private final Runnable updatePositionsCallback;
+
+        ProductAdapter(MainActivity activity, ArrayList<Product> products, Runnable updatePositionsCallback) {
+            this.activity = activity;
+            this.products = products;
+            this.updatePositionsCallback = updatePositionsCallback;
+
+            // Set up ItemTouchHelper for drag and drop
+            ItemTouchHelper.Callback callback = new ItemTouchHelper.Callback() {
+                @Override
+                public int getMovementFlags(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                    int dragFlags = ItemTouchHelper.UP | ItemTouchHelper.DOWN;
+                    int swipeFlags = ItemTouchHelper.START | ItemTouchHelper.END;
+                    return makeMovementFlags(dragFlags, swipeFlags);
+                }
+
+                @Override
+                public boolean onMove(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder source, @NonNull RecyclerView.ViewHolder target) {
+                    int fromPosition = source.getAdapterPosition();
+                    int toPosition = target.getAdapterPosition();
+
+                    if (fromPosition < toPosition) {
+                        for (int i = fromPosition; i < toPosition; i++) {
+                            Collections.swap(products, i, i + 1);
+                        }
+                    } else {
+                        for (int i = fromPosition; i > toPosition; i--) {
+                            Collections.swap(products, i, i - 1);
+                        }
+                    }
+
+                    // Update positions in the database by running the callback on the UI thread
+                    if (updatePositionsCallback != null) {
+                        activity.runOnUiThread(updatePositionsCallback);
+                    }
+
+                    notifyItemMoved(fromPosition, toPosition);
+                    return true;
+                }
+
+                @Override
+                public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
+                    int position = viewHolder.getAdapterPosition();
+                    Product product = products.get(position);
+
+                    if (direction == ItemTouchHelper.RIGHT) {
+                        // Swipe right - decrease quantity or remove
+                        if (product.getQuantity() > 0) {
+                            // Decrease quantity
+                            Product updated = new Product(
+                                product.getName(),
+                                product.getQuantity() - 1,
+                                product.getCategoryId(),
+                                System.currentTimeMillis(),
+                                product.getPosition()
+                            );
+                            products.set(position, updated);
+                            notifyItemChanged(position);
+
+                            // Update in database
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                activity.productDao.insert(updated.toEntity());
+                            });
+                        } else {
+                            // Remove if quantity is already 0
+                            Product removed = products.remove(position);
+                            notifyItemRemoved(position);
+
+                            // Delete from database
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                activity.productDao.delete(removed.toEntity());
+                            });
+                        }
+                    } else if (direction == ItemTouchHelper.LEFT) {
+                        // Swipe left - increase quantity
+                        Product updated = new Product(
+                            product.getName(),
+                            product.getQuantity() + 1,
+                            product.getCategoryId(),
+                            System.currentTimeMillis(),
+                            product.getPosition()
+                        );
+                        products.set(position, updated);
+                        notifyItemChanged(position);
+
+                        // Update in database
+                        Executors.newSingleThreadExecutor().execute(() -> {
+                            activity.productDao.insert(updated.toEntity());
+                        });
+                    }
+                }
+
+                @Override
+                public void onSelectedChanged(RecyclerView.ViewHolder viewHolder, int actionState) {
+                    super.onSelectedChanged(viewHolder, actionState);
+                    if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                        viewHolder.itemView.setAlpha(0.5f);
+                    }
+                }
+
+                @Override
+                public void clearView(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
+                    super.clearView(recyclerView, viewHolder);
+                    viewHolder.itemView.setAlpha(1.0f);
+                }
+
+                @Override
+                public boolean isLongPressDragEnabled() {
+                    return true;
+                }
+            };
+
+
+            this.itemTouchHelper = new ItemTouchHelper(callback);
+            this.itemTouchHelper.attachToRecyclerView(activity.recyclerView);
+        }
+
+        @NonNull
+        @Override
+        public ProductViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_product, parent, false);
+            return new ProductViewHolder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull ProductViewHolder holder, int position) {
+            Product product = products.get(position);
+            holder.bind(product);
+
+            // Set up drag handle
+            holder.dragHandle.setOnTouchListener((v, event) -> {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    itemTouchHelper.startDrag(holder);
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        @Override
+        public int getItemCount() {
+            return products.size();
+        }
+        
+        public void onItemMove(int fromPosition, int toPosition) {
+            // Update the items in the list
+            if (fromPosition < toPosition) {
+                for (int i = fromPosition; i < toPosition; i++) {
+                    Collections.swap(products, i, i + 1);
+                }
+            } else {
+                for (int i = fromPosition; i > toPosition; i--) {
+                    Collections.swap(products, i, i - 1);
+                }
+            }
+            
+            // Notify the adapter that the item has moved
+            notifyItemMoved(fromPosition, toPosition);
+            
+            // Update positions in the database by running the callback on the UI thread
+            if (updatePositionsCallback != null) {
+                activity.runOnUiThread(updatePositionsCallback);
+            }
+        }
+
+        class ProductViewHolder extends RecyclerView.ViewHolder {
+            private final TextView txtProductName;
+            private final TextView txtQuantity;
+            private final ImageView dragHandle;
+
+            ProductViewHolder(View itemView) {
+                super(itemView);
+                txtProductName = itemView.findViewById(R.id.txtProductName);
+                txtQuantity = itemView.findViewById(R.id.txtQuantity);
+                dragHandle = itemView.findViewById(R.id.drag_handle);
+            }
+
+            void bind(Product product) {
+                txtProductName.setText(product.getName());
+                txtQuantity.setText(String.valueOf(product.getQuantity()));
+
+                // Strikethrough if quantity is 0
+                if (product.getQuantity() == 0) {
+                    txtProductName.setPaintFlags(txtProductName.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+                    txtQuantity.setPaintFlags(txtQuantity.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
+                } else {
+                    txtProductName.setPaintFlags(txtProductName.getPaintFlags() & (~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG));
+                    txtQuantity.setPaintFlags(txtQuantity.getPaintFlags() & (~android.graphics.Paint.STRIKE_THRU_TEXT_FLAG));
+                }
+            }
+        }
+    }
+
+
+    private class BluetoothHandler implements Runnable {
+        private final BluetoothSocket socket;
+        private ObjectOutputStream outputStream;
+        private ObjectInputStream inputStream;
+
+        BluetoothHandler(BluetoothSocket socket) {
+            this.socket = socket;
+            try {
+                outputStream = new ObjectOutputStream(socket.getOutputStream());
+                inputStream = new ObjectInputStream(socket.getInputStream());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                // 1. Prepare data to send
+                List<CategoryEntity> categoryList = categoryDao.getAll();
+                List<ProductEntity> productEntities = productDao.getAllProducts();
+                List<Product> productList = new ArrayList<>();
+                for (ProductEntity entity : productEntities) {
+                    productList.add(Product.fromEntity(entity));
+                }
+                SyncData syncData = new SyncData(categoryList, productList);
+
+                // 2. Send SyncData
+                outputStream.writeObject(syncData);
+
+                // 3. Receive SyncData
+                SyncData receivedData = (SyncData) inputStream.readObject();
+
+                // 4. Synchronize categories first
+                Executors.newSingleThreadExecutor().execute(() -> {
+                    for (CategoryEntity cat : receivedData.categories) {
+                        if (categoryDao.getCategoryByName(cat.getName()) == null) {
+                            categoryDao.insert(cat);
+                        }
+                    }
+                    // 5. Synchronize products (with category relationship)
+                    for (Product prod : receivedData.products) {
+                        if (productDao.getByName(prod.getName()) == null) {
+                            // Map category name to local categoryId if needed
+                            CategoryEntity localCat = categoryDao.getById(prod.getCategoryId());
+                            if (localCat != null) {
+                                prod.setCategoryId(localCat.getId());
+                            }
+                            // Convert Product to ProductEntity before inserting
+                            ProductEntity prodEntity = prod.toEntity();
+                            productDao.insert(prodEntity); // productDao.insert expects ProductEntity
+                        }
+                    }
+                    // 6. Update UI as needed
+                    runOnUiThread(() -> adapter.notifyDataSetChanged());
+                });
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
+    private void updateCategoryPositions() {
+        if (categories == null) return;
+        
+        // Update positions in the list
+        for (int i = 0; i < categories.size(); i++) {
+            categories.get(i).setPosition(i);
+        }
+        
+        // Update database in background
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                for (int i = 0; i < categories.size(); i++) {
+                    CategoryEntity category = categories.get(i);
+                    category.setPosition(i);
+                    categoryDao.update(category);
+                }
+                
+                // Verify the order in the database
+                List<CategoryEntity> updatedCategories = categoryDao.getAll();
+                for (CategoryEntity cat : updatedCategories) {
+                    Log.d("CategoryPositions", "Category: " + cat.getName() + " Position: " + cat.getPosition());
+                }
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error updating category positions: " + e.getMessage(), e);
+                // If there's an error, reload categories to ensure consistency
+                runOnUiThread(this::loadCategoriesAndTabs);
+            }
+        });
+    }
+
+    private void moveCategory(int fromPosition, int toPosition) {
+        if (categories == null || fromPosition < 0 || toPosition < 0 || 
+            fromPosition >= categories.size() || toPosition >= categories.size() ||
+            fromPosition == toPosition) {
+            return;
+        }
+
+        // Update the list
+        CategoryEntity category = categories.remove(fromPosition);
+        categories.add(toPosition, category);
+
+        // Update the UI
+        tabLayout.removeTabAt(fromPosition);
+        TabLayout.Tab newTab = tabLayout.newTab().setText(category.getName());
+        newTab.setTag(category.getId());
+        tabLayout.addTab(newTab, toPosition, false);
+        
+        // Select the moved tab
+        tabLayout.selectTab(tabLayout.getTabAt(toPosition));
+        selectedCategoryId = category.getId();
+        loadProductsForCategory(selectedCategoryId);
+
+        // Update positions in the database
+        updateCategoryPositions();
+        
+        // Provide haptic feedback
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            tabLayout.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+        }
+    }
+
     private void loadCategoriesAndTabs() {       
         Executors.newSingleThreadExecutor().execute(() -> {
             try {                
-                // Get all categories
-                List<CategoryEntity> currentCategories = categoryDao.getAll();
+                // Get all categories, ordered by position
+                categories = categoryDao.getAll();
+                
+                // Sort categories by position to ensure correct order
+                Collections.sort(categories, (c1, c2) -> Integer.compare(c1.getPosition(), c2.getPosition()));
                 
                 // Update UI on main thread
                 runOnUiThread(() -> {
-                    if (tabLayout != null) {
-                        tabLayout.removeAllTabs();
-                        for (CategoryEntity cat : currentCategories) {
-                            tabLayout.addTab(tabLayout.newTab().setText(cat.name));
-                        }
-                        
-                        if (!currentCategories.isEmpty()) {
-                            selectedCategoryId = currentCategories.get(0).id;
-                            loadProductsForCategory(selectedCategoryId);
+                    if (tabLayout == null) return;
+                    
+                    // Remove all tabs
+                    tabLayout.removeAllTabs();
+                    
+                    // Add tabs in the correct order
+                    for (CategoryEntity cat : categories) {
+                        TabLayout.Tab tab = tabLayout.newTab().setText(cat.getName());
+                        tab.setTag(cat.getId());
+                        tabLayout.addTab(tab);
+                    }
+                    
+                    // Set up drag and drop for categories
+                    if (tabLayout instanceof CategoryTabLayout) {
+                        ((CategoryTabLayout) tabLayout).setOnTabDragListener((fromPosition, toPosition) -> {
+                            moveCategory(fromPosition, toPosition);
+                        });
+                    }
+                    
+                    // Select the first tab if none is selected
+                    if (!categories.isEmpty() && tabLayout.getSelectedTabPosition() == -1) {
+                        selectedCategoryId = categories.get(0).getId();
+                        tabLayout.selectTab(tabLayout.getTabAt(0));
+                        loadProductsForCategory(selectedCategoryId);
+                    } else if (selectedCategoryId != -1) {
+                        // Try to find and select the previously selected tab
+                        for (int i = 0; i < categories.size(); i++) {
+                            if (categories.get(i).getId() == selectedCategoryId) {
+                                tabLayout.selectTab(tabLayout.getTabAt(i));
+                                break;
+                            }
                         }
                     }
                 });
             } catch (Exception e) {
                 Log.e("MainActivity", "Error loading categories: " + e.getMessage(), e);
+                // If there's an error, try to recover by resetting the category order
+                runOnUiThread(this::resetCategoryOrder);
+            }
+        });
+    }
+    
+    private void resetCategoryOrder() {
+        if (categories == null || categories.isEmpty()) return;
+        
+        // Reset positions to their current order
+        for (int i = 0; i < categories.size(); i++) {
+            categories.get(i).setPosition(i);
+        }
+        
+        // Update database
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                for (CategoryEntity category : categories) {
+                    categoryDao.update(category);
+                }
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error resetting category order: " + e.getMessage(), e);
             }
         });
     }

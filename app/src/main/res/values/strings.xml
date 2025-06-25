@@ -6,4 +6,5 @@
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="category_has_products">This category contains products. Delete category and all its products?</string>
+    <string name="drag_handle">Drag handle</string>
 </resources>

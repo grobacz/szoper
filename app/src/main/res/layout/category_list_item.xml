@@ -3,13 +3,31 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:padding="16dp">
+    android:padding="8dp"
+    android:background="?android:attr/selectableItemBackground"
+    android:longClickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/drag_handle"
+        android:layout_width="48dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_vertical|start"
+        android:contentDescription="@string/drag_handle"
+        android:src="@drawable/ic_drag_handle"
+        android:clickable="true"
+        android:focusable="true"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="center"
+        android:tint="@color/drag_handle_color"
+        android:padding="12dp" />
 
     <TextView
         android:id="@+id/category_name"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
+        android:gravity="center_vertical"
         android:textAppearance="?android:attr/textAppearanceMedium"
         android:textColor="@android:color/black"
         android:paddingStart="8dp"
