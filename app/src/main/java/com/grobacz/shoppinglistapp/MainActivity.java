@@ -27,7 +27,14 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.widget.Toast;
+
+import com.grobacz.shoppinglistapp.adapter.DeviceListAdapter;
+import com.grobacz.shoppinglistapp.model.BluetoothDeviceModel;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -61,11 +68,15 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     private FloatingActionButton fabBurger;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothServerSocket serverSocket;
+    private boolean isDiscovering = false;
+    private DeviceListAdapter deviceListAdapter;
+    private android.app.AlertDialog deviceListDialog;
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     
     // Permission request codes
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_PERMISSIONS = 2;
+    private static final long SCAN_PERIOD = 10000; // 10 seconds
     
     // Permissions arrays
     private static final String[] REQUIRED_PERMISSIONS;
@@ -251,14 +262,200 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         tabLayout.addOnTabSelectedListener(this);
 
         fabBurger = findViewById(R.id.fabBurger);
-        fabBurger.setOnClickListener(v -> {
-            android.widget.PopupMenu popup = new android.widget.PopupMenu(this, fabBurger);
-            popup.getMenuInflater().inflate(R.menu.menu_main, popup.getMenu());
-            popup.setOnMenuItemClickListener(item -> onOptionsItemSelected(item));
-            popup.show();
-        });
+        fabBurger.setOnClickListener(v -> showMainMenu());
+        
+        // Start Bluetooth server
+        if (checkBluetoothState()) {
+            startBluetoothServer();
+        }
+    }
 
-        // Start Bluetooth server thread
+    private void showMainMenu() {
+        // Create a popup menu anchored to the fabBurger button
+        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, fabBurger);
+        
+        // Inflate our menu resource
+        popup.getMenuInflater().inflate(R.menu.main_menu, popup.getMenu());
+        
+        // Set up click listeners for each menu item
+        popup.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            
+            if (id == R.id.action_sync) {
+                startDeviceDiscovery();
+                return true;
+            } else if (id == R.id.action_categories) {
+                Intent intent = new Intent(this, CategoryActivity.class);
+                startActivity(intent);
+                return true;
+            } else if (id == R.id.action_reset_db) {
+                // Reset the database
+                AppDatabase.resetDatabase(this);
+                // Restart the activity to reinitialize everything
+                finish();
+                startActivity(getIntent());
+                return true;
+            }
+            return false;
+        });
+        
+        // Show the popup menu
+        popup.show();
+    }
+    
+    // Remove the onCreateOptionsMenu method since we're not using the options menu
+
+    private void startDeviceDiscovery() {
+        if (!checkBluetoothState()) return;
+
+        // Create and show the device list dialog
+        showDeviceListDialog();
+
+        // Start discovery
+        startDiscovery();
+    }
+
+    private boolean checkBluetoothState() {
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth is not available on this device", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+
+        if (!bluetoothAdapter.isEnabled()) {
+            Toast.makeText(this, "Please enable Bluetooth first", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+        return true;
+    }
+
+    private void showDeviceListDialog() {
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_device_list, null);
+        RecyclerView deviceList = dialogView.findViewById(R.id.deviceList);
+        View progressBar = dialogView.findViewById(R.id.progressBar);
+        TextView statusMessage = dialogView.findViewById(R.id.statusMessage);
+        View btnScan = dialogView.findViewById(R.id.btnScan);
+
+        deviceList.setLayoutManager(new LinearLayoutManager(this));
+        deviceListAdapter = new DeviceListAdapter(device -> {
+            // Handle device selection
+            connectToDevice(device);
+            if (deviceListDialog != null && deviceListDialog.isShowing()) {
+                deviceListDialog.dismiss();
+            }
+        });
+        deviceList.setAdapter(deviceListAdapter);
+
+        btnScan.setOnClickListener(v -> startDiscovery());
+
+        deviceListDialog = new android.app.AlertDialog.Builder(this)
+                .setTitle("Select a device")
+                .setView(dialogView)
+                .setNegativeButton("Cancel", (dialog, which) -> cancelDiscovery())
+                .setOnDismissListener(dialog -> cancelDiscovery())
+                .show();
+    }
+
+    private void startDiscovery() {
+        if (isDiscovering) {
+            cancelDiscovery();
+        }
+
+        if (!checkBluetoothState()) return;
+
+        // Clear previous results
+        if (deviceListAdapter != null) {
+            deviceListAdapter.clearDevices();
+        }
+
+        // Start discovery
+        isDiscovering = true;
+        if (deviceListDialog != null) {
+            View progressBar = deviceListDialog.findViewById(R.id.progressBar);
+            TextView statusMessage = deviceListDialog.findViewById(R.id.statusMessage);
+            if (progressBar != null) progressBar.setVisibility(View.VISIBLE);
+            if (statusMessage != null) statusMessage.setText("Searching for devices...");
+        }
+
+        // Register for broadcasts when a device is discovered
+        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        registerReceiver(discoveryReceiver, filter);
+
+        // Register for broadcasts when discovery has finished
+        filter = new IntentFilter(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        registerReceiver(discoveryReceiver, filter);
+
+        // Start discovery
+        if (!bluetoothAdapter.startDiscovery()) {
+            Toast.makeText(this, "Failed to start discovery", Toast.LENGTH_SHORT).show();
+            cancelDiscovery();
+        }
+
+        // Automatically stop discovery after SCAN_PERIOD
+        new Handler().postDelayed(this::cancelDiscovery, SCAN_PERIOD);
+    }
+
+    private final BroadcastReceiver discoveryReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                // Device found
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                if (device != null && device.getName() != null) {
+                    runOnUiThread(() -> {
+                        if (deviceListAdapter != null) {
+                            deviceListAdapter.addDevice(new BluetoothDeviceModel(device));
+                        }
+                    });
+                }
+            } else if (BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                // Discovery finished
+                runOnUiThread(() -> {
+                    isDiscovering = false;
+                    if (deviceListDialog != null) {
+                        View progressBar = deviceListDialog.findViewById(R.id.progressBar);
+                        TextView statusMessage = deviceListDialog.findViewById(R.id.statusMessage);
+                        if (progressBar != null) progressBar.setVisibility(View.GONE);
+                        if (statusMessage != null) {
+                            statusMessage.setText(deviceListAdapter.getItemCount() > 0 ? 
+                                "Select a device to connect" : "No devices found");
+                        }
+                    }
+                });
+            }
+        }
+    };
+
+    private void cancelDiscovery() {
+        if (!isDiscovering) return;
+        
+        isDiscovering = false;
+        try {
+            unregisterReceiver(discoveryReceiver);
+        } catch (IllegalArgumentException e) {
+            // Receiver was not registered
+        }
+        
+        if (bluetoothAdapter != null) {
+            bluetoothAdapter.cancelDiscovery();
+        }
+    }
+
+    private void connectToDevice(BluetoothDevice device) {
+        // TODO: Implement connection logic
+        Toast.makeText(this, "Connecting to " + device.getName(), Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        cancelDiscovery();
+    }
+
+
+
+    // Start Bluetooth server thread
+    private void startBluetoothServer() {
         new Thread(this::startServer).start();
     }
 
@@ -341,34 +538,8 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
 
 
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_main, menu);
-        getMenuInflater().inflate(R.menu.main_menu, menu);
-        return true;
-    }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
 
-        if (id == R.id.action_sync) {
-            showSyncDialog();
-            return true;
-        } else if (id == R.id.action_categories) {
-            Intent intent = new Intent(this, CategoryActivity.class);
-            startActivity(intent);
-            return true;
-        } else if (id == R.id.action_reset_db) {
-            // Reset the database
-            AppDatabase.resetDatabase(this);
-            // Restart the activity to reinitialize everything
-            finish();
-            startActivity(getIntent());
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
 
     private void showSyncDialog() {
         if (!bluetoothAdapter.isEnabled()) {
