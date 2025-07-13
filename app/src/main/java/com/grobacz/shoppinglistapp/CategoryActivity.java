@@ -38,6 +38,11 @@ import androidx.core.content.ContextCompat;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.grobacz.shoppinglistapp.dao.CategoryDao;
+import com.grobacz.shoppinglistapp.dao.ProductDao;
+import com.grobacz.shoppinglistapp.model.CategoryEntity;
+import com.grobacz.shoppinglistapp.model.ProductEntity;
+
 class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
     private final CategoryDao categoryDao;
     private final ProductDao productDao;
@@ -126,7 +131,7 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
                     new CheckProductsAndDeleteTask(context, cat, categoryDao, productDao, () -> 
                         activity.runOnUiThread(() -> {
                             try {
-                                List<CategoryEntity> updatedList = categoryDao.getAll();
+                                List<CategoryEntity> updatedList = categoryDao.getAllSync();
                                 Log.d("CategoryActivity", "After deletion, got " + updatedList.size() + " categories");
                                 clear();
                                 addAll(updatedList);
@@ -517,7 +522,7 @@ public class CategoryActivity extends AppCompatActivity {
         String name = editText.getText().toString().trim();
         if (!name.isEmpty()) {
             new Thread(() -> {
-                categoryDao.insert(new CategoryEntity(name));
+                categoryDao.insert(new CategoryEntity(name, 0));
                 runOnUiThread(() -> {
                     editText.setText("");
                     refreshList(listView);
@@ -612,7 +617,7 @@ public class CategoryActivity extends AppCompatActivity {
     private void checkDatabaseContents() {
         new Thread(() -> {
             try {
-                List<CategoryEntity> allCategories = categoryDao.getAll();
+                List<CategoryEntity> allCategories = categoryDao.getAllSync();
                 Log.d("DatabaseCheck", "Found " + allCategories.size() + " categories in database");
                 for (CategoryEntity cat : allCategories) {
                     Log.d("DatabaseCheck", "Category: " + cat.getName() + " (id: " + cat.getId() + ", pos: " + cat.getPosition() + ")");
@@ -643,7 +648,7 @@ public class CategoryActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 Log.d("CategoryActivity", "Loading categories from database");
-                final List<CategoryEntity> newList = categoryDao.getAll();
+                final List<CategoryEntity> newList = categoryDao.getAllSync();
                 Log.d("CategoryActivity", "Loaded " + (newList != null ? newList.size() : 0) + " categories from database");
                 
                 if (newList != null) {

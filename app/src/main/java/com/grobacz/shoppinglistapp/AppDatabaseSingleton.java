@@ -4,6 +4,8 @@ import android.content.Context;
 
 import androidx.room.Room;
 
+import com.grobacz.shoppinglistapp.AppDatabase;
+
 public class AppDatabaseSingleton {
     private static AppDatabase instance;
 
@@ -14,7 +16,9 @@ public class AppDatabaseSingleton {
                     .addMigrations(
                         AppDatabase.MIGRATION_3_4,
                         AppDatabase.MIGRATION_4_5,
-                        AppDatabase.MIGRATION_5_6
+                        AppDatabase.MIGRATION_5_6,
+                        AppDatabase.MIGRATION_6_7,
+                        AppDatabase.MIGRATION_7_8
                     )
                     .fallbackToDestructiveMigration()
                     .build();

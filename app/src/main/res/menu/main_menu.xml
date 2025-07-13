@@ -2,15 +2,28 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_save_state"
+        android:title="@string/save_state"
+        android:icon="@android:drawable/ic_menu_save"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_restore_state"
+        android:title="@string/restore_state"
+        android:icon="@android:drawable/ic_menu_revert"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_sync"
         android:title="Sync with device"
+        android:icon="@android:drawable/ic_menu_share"
         app:showAsAction="never" />
     <item
         android:id="@+id/action_categories"
         android:title="Categories"
+        android:icon="@android:drawable/ic_menu_sort_by_size"
         app:showAsAction="never" />
     <item
         android:id="@+id/action_reset_db"
         android:title="Reset Database"
+        android:icon="@android:drawable/ic_menu_delete"
         app:showAsAction="never" />
 </menu>

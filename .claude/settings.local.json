@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(./gradlew lint:*)",
+      "Bash(./gradlew detekt:*)",
+      "Bash(./gradlew checkstyle:*)",
+      "Bash(find:*)",
+      "Bash(./gradlew compileDebugJavaWithJavac:*)",
+      "Bash(grep:*)"
+    ],
+    "deny": []
+  }
+}

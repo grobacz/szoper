@@ -2,7 +2,7 @@ package com.grobacz.shoppinglistapp;
 
 import java.io.Serializable;
 import java.util.List;
-import com.grobacz.shoppinglistapp.CategoryEntity;
+import com.grobacz.shoppinglistapp.model.CategoryEntity;
 import com.grobacz.shoppinglistapp.Product;
 
 public class SyncData implements Serializable {

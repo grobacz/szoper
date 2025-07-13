@@ -1,0 +1,58 @@
+// Static Analysis Configuration
+// Add this to your app/build.gradle or include it via apply from
+
+// Task to run all static analysis tools
+task staticAnalysis {
+    group = 'verification'
+    description = 'Runs all static analysis tools'
+    
+    dependsOn 'detekt', 'checkstyle', 'lintDebug'
+    
+    doLast {
+        println "Static analysis completed!"
+        println "Reports can be found in:"
+        println "- Lint: ${project.buildDir}/reports/lint/"
+        println "- Detekt: ${project.buildDir}/reports/detekt/"
+        println "- Checkstyle: ${project.buildDir}/reports/checkstyle/"
+        println "- SpotBugs: ${project.buildDir}/reports/spotbugs/"
+    }
+}
+
+// Task to run static analysis without compilation
+task staticAnalysisNoCompile {
+    group = 'verification'
+    description = 'Runs static analysis tools that do not require compilation'
+    
+    dependsOn 'detekt', 'checkstyle'
+    
+    doLast {
+        println "Static analysis (no compilation) completed!"
+        println "Reports can be found in:"
+        println "- Detekt: ${project.buildDir}/reports/detekt/"
+        println "- Checkstyle: ${project.buildDir}/reports/checkstyle/"
+    }
+}
+
+// Task to fix auto-correctable issues
+task staticAnalysisFix {
+    group = 'verification'
+    description = 'Auto-fixes issues found by static analysis tools'
+    
+    dependsOn 'detektFormat'
+    
+    doLast {
+        println "Auto-fix completed! Re-run staticAnalysis to verify fixes."
+    }
+}
+
+// Custom detekt task with formatting
+task detektFormat {
+    description = "Runs detekt with auto-correction"
+    group = "verification"
+    
+    doLast {
+        exec {
+            commandLine './gradlew', 'detekt', '--auto-correct'
+        }
+    }
+}

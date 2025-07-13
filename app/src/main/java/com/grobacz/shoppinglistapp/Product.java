@@ -1,58 +1,62 @@
 package com.grobacz.shoppinglistapp;
 
+import com.grobacz.shoppinglistapp.model.ProductEntity;
+
 import java.io.Serializable;
 import java.util.Date;
 
 public class Product implements Serializable {
+    private int id;
     private String name;
-    private int quantity;
+    private boolean isChecked;
+    private int position;
     private int categoryId;
     private long lastModified;
-    private int position;
 
-    public Product(String name, int quantity, int categoryId) {
+    public Product(String name, boolean isChecked, int position, int categoryId) {
         this.name = name;
-        this.quantity = quantity;
+        this.isChecked = isChecked;
+        this.position = position;
         this.categoryId = categoryId;
         this.lastModified = new Date().getTime();
-        this.position = 0;
     }
 
-    public Product(String name, int quantity, int categoryId, long lastModified) {
+    public Product(String name, boolean isChecked, int position, int categoryId, long lastModified) {
         this.name = name;
-        this.quantity = quantity;
-        this.categoryId = categoryId;
-        this.lastModified = lastModified;
-        this.position = 0;
-    }
-
-    public Product(String name, int quantity, int categoryId, long lastModified, int position) {
-        this.name = name;
-        this.quantity = quantity;
-        this.categoryId = categoryId;
-        this.lastModified = lastModified;
+        this.isChecked = isChecked;
         this.position = position;
+        this.categoryId = categoryId;
+        this.lastModified = lastModified;
     }
 
     public static Product fromEntity(ProductEntity entity) {
         return new Product(
-            entity.getName(), 
-            entity.getQuantity(), 
-            entity.getCategoryId(), 
-            entity.getLastModified(), 
-            entity.getPosition()
+            entity.getName(),
+            entity.isChecked(),
+            entity.getPosition(),
+            entity.getCategoryId(),
+            entity.getLastModified()
         );
     }
 
     public ProductEntity toEntity() {
         ProductEntity entity = new ProductEntity(
-            name, 
-            quantity, 
-            categoryId, 
-            lastModified, 
-            position
+            name,
+            isChecked,
+            position,
+            categoryId
         );
+        entity.setId(id);
+        entity.setLastModified(lastModified);
         return entity;
+    }
+
+    public int getId() {
+        return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
     public String getName() {
@@ -63,12 +67,12 @@ public class Product implements Serializable {
         this.name = name;
     }
 
-    public int getQuantity() {
-        return quantity;
+    public boolean isChecked() {
+        return isChecked;
     }
 
-    public void setQuantity(int quantity) {
-        this.quantity = quantity;
+    public void setChecked(boolean checked) {
+        isChecked = checked;
     }
 
     public int getCategoryId() {

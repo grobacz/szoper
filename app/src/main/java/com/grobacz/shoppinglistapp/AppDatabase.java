@@ -6,7 +6,14 @@ import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 import androidx.room.Room;
 
-@Database(entities = {ProductEntity.class, CategoryEntity.class}, version = 6, exportSchema = false)
+import com.grobacz.shoppinglistapp.dao.CategoryDao;
+import com.grobacz.shoppinglistapp.dao.ProductDao;
+import com.grobacz.shoppinglistapp.dao.SavedStateDao;
+import com.grobacz.shoppinglistapp.model.CategoryEntity;
+import com.grobacz.shoppinglistapp.model.ProductEntity;
+import com.grobacz.shoppinglistapp.model.SavedState;
+
+@Database(entities = {ProductEntity.class, CategoryEntity.class, SavedState.class}, version = 8, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     // Migration from version 3 to 4: Add lastModified column to products table
     public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
@@ -34,6 +41,28 @@ public abstract class AppDatabase extends RoomDatabase {
             database.execSQL("ALTER TABLE products ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
             // Update existing products to have unique positions
             database.execSQL("UPDATE products SET position = (SELECT COUNT(*) FROM products p2 WHERE p2.rowid <= products.rowid) - 1");
+        }
+    };
+    
+    // Migration from version 6 to 7: Add saved_states table
+    public static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // Create saved_states table
+            database.execSQL("CREATE TABLE IF NOT EXISTS saved_states (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "name TEXT, " +
+                    "timestamp INTEGER NOT NULL, " +
+                    "data BLOB)");
+        }
+    };
+    
+    // Migration from version 7 to 8: Ensure position column exists in categories table
+    public static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // This migration ensures the position column exists with a default value of 0
+            database.execSQL("ALTER TABLE categories ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
         }
     };
     
@@ -66,13 +95,39 @@ public abstract class AppDatabase extends RoomDatabase {
             }
         }
     }
+    
     public abstract ProductDao productDao();
     public abstract CategoryDao categoryDao();
+    public abstract SavedStateDao savedStateDao();
     
     // Method to reset the database for testing
     public static void resetDatabase(android.content.Context context) {
         android.util.Log.d("AppDatabase", "Resetting database...");
         context.deleteDatabase("shopping_list_database");
+        // Reset the singleton instance
+        AppDatabaseSingleton.resetInstance();
         android.util.Log.d("AppDatabase", "Database reset complete");
+    }
+    
+    /**
+     * Gets the singleton instance of AppDatabase.
+     * @param context The application context
+     * @return The singleton database instance
+     */
+    public static AppDatabase getDatabase(final android.content.Context context) {
+        return Room.databaseBuilder(context.getApplicationContext(),
+                            AppDatabase.class, "shopping_list_database")
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .fallbackToDestructiveMigration() // This will clear the database on version mismatch
+                    .build();
+    }
+    
+    /**
+     * Gets the singleton instance of AppDatabase using the singleton pattern.
+     * @param context The application context
+     * @return The singleton database instance
+     */
+    public static AppDatabase getInstance(final android.content.Context context) {
+        return AppDatabaseSingleton.getInstance(context);
     }
 }
