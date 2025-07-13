@@ -13,7 +13,7 @@ import com.grobacz.shoppinglistapp.model.CategoryEntity;
 import com.grobacz.shoppinglistapp.model.ProductEntity;
 import com.grobacz.shoppinglistapp.model.SavedState;
 
-@Database(entities = {ProductEntity.class, CategoryEntity.class, SavedState.class}, version = 9, exportSchema = false)
+@Database(entities = {ProductEntity.class, CategoryEntity.class, SavedState.class}, version = 10, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     // Migration from version 3 to 4: Add lastModified column to products table
     public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
@@ -89,6 +89,15 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
     
+    // Migration from version 9 to 10: Add quantity column to products table
+    public static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // Add quantity column with default value of 1
+            database.execSQL("ALTER TABLE products ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+        }
+    };
+    
     public static void checkDatabase(android.content.Context context) {
         android.database.sqlite.SQLiteDatabase db = null;
         try {
@@ -140,7 +149,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public static AppDatabase getDatabase(final android.content.Context context) {
         return Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "shopping_list_database")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                     .fallbackToDestructiveMigration() // This will clear the database on version mismatch
                     .build();
     }

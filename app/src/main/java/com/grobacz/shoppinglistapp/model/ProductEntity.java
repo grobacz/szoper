@@ -2,6 +2,7 @@ package com.grobacz.shoppinglistapp.model;
 
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
+import androidx.room.Ignore;
 import androidx.room.Index;
 import androidx.room.PrimaryKey;
 
@@ -21,13 +22,25 @@ public class ProductEntity {
     @PrimaryKey(autoGenerate = true)
     private int id;
     private String name;
+    private int quantity;
     private boolean isChecked;
     private int position;
     private int categoryId;
     private long lastModified;
 
+    public ProductEntity(String name, int quantity, boolean isChecked, int position, int categoryId) {
+        this.name = name;
+        this.quantity = quantity;
+        this.isChecked = isChecked;
+        this.position = position;
+        this.categoryId = categoryId;
+    }
+
+    // Legacy constructor for backward compatibility
+    @Ignore
     public ProductEntity(String name, boolean isChecked, int position, int categoryId) {
         this.name = name;
+        this.quantity = 1; // Default quantity
         this.isChecked = isChecked;
         this.position = position;
         this.categoryId = categoryId;
@@ -47,6 +60,14 @@ public class ProductEntity {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public int getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
     }
 
     public boolean isChecked() {

@@ -25,6 +25,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import com.google.android.material.card.MaterialCardView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -249,27 +250,16 @@ public class CategoryActivity extends AppCompatActivity {
         // Initialize the list first
         categoryList = new ArrayList<>();
         
-        // Initialize the listView field
-        listView = findViewById(R.id.category_list_view);
-        // Ensure the list view is visible and has proper layout params
+        // Initialize the ListView field (use RecyclerView as ListView for now)
+        listView = findViewById(R.id.categoryRecyclerView);
+        // Set up ListView
         listView.setVisibility(View.VISIBLE);
-        listView.setEmptyView(findViewById(android.R.id.empty));
-        
-        // Add an empty view in case there are no categories
-        TextView emptyView = new TextView(this);
-        emptyView.setLayoutParams(new ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, 
-            ViewGroup.LayoutParams.MATCH_PARENT));
-        emptyView.setGravity(Gravity.CENTER);
-        emptyView.setText("No categories yet. Add one to get started!");
-        emptyView.setVisibility(View.GONE);
-        ((ViewGroup)listView.getParent()).addView(emptyView);
-        listView.setEmptyView(emptyView);
-        EditText editText = findViewById(R.id.category_edit_text);
-        Button addButton = findViewById(R.id.add_category_button);
-        Button backButton = findViewById(R.id.back_to_products_button);
-        Button saveButton = findViewById(R.id.save_category_button);
-        LinearLayout inputBar = findViewById(R.id.input_bar);
+        EditText editText = findViewById(R.id.categoryEditText);
+        Button addButton = findViewById(R.id.btnSave);
+        Button backButton = findViewById(R.id.btnCancel);
+        Button saveButton = findViewById(R.id.btnSave);
+        MaterialCardView inputCard = findViewById(R.id.inputCard);
+        View inputBar = inputCard; // Use inputCard as inputBar for compatibility
 
         // Set up the adapter with the empty list first
         adapter = new CategoryAdapter(this, categoryList, categoryDao, productDao);
@@ -501,9 +491,9 @@ public class CategoryActivity extends AppCompatActivity {
         
     }
 
-    private ListView listView; // Add this line at the top with other fields
+    private ListView listView; // Keep ListView for now
 
-    private void hideInputBar(LinearLayout inputBar, EditText editText) {
+    private void hideInputBar(View inputBar, EditText editText) {
         inputBar.animate()
             .alpha(0f)
             .setDuration(200)
@@ -516,7 +506,7 @@ public class CategoryActivity extends AppCompatActivity {
             .start();
     }
 
-    private void saveCategory(EditText editText, ListView listView, LinearLayout inputBar) {
+    private void saveCategory(EditText editText, ListView listView, View inputBar) {
         String name = editText.getText().toString().trim();
         if (!name.isEmpty()) {
             new Thread(() -> {

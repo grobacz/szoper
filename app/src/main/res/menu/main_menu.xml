@@ -12,16 +12,6 @@
         android:icon="@android:drawable/ic_menu_revert"
         app:showAsAction="never" />
     <item
-        android:id="@+id/action_sync"
-        android:title="Sync with device"
-        android:icon="@android:drawable/ic_menu_share"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/action_categories"
-        android:title="Categories"
-        android:icon="@android:drawable/ic_menu_sort_by_size"
-        app:showAsAction="never" />
-    <item
         android:id="@+id/action_reset_db"
         android:title="Reset Database"
         android:icon="@android:drawable/ic_menu_delete"

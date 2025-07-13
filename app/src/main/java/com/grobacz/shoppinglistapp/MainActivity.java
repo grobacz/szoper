@@ -16,6 +16,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -27,6 +28,7 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.google.android.material.button.MaterialButton;
 
 // AndroidX imports
 import androidx.annotation.NonNull;
@@ -45,6 +47,7 @@ import androidx.room.Room;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
 
 // App imports
@@ -80,8 +83,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     private RecyclerView recyclerView;
     private ProductAdapter adapter;
     private ArrayList<Product> productList;
-    private FloatingActionButton fabAdd;
-    private FloatingActionButton fabBurger;
+    private ExtendedFloatingActionButton fabAdd;
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothServerSocket serverSocket;
     private boolean isDiscovering = false;
@@ -124,10 +126,14 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
 
     @Override
     public void onTabSelected(TabLayout.Tab tab) {
+        Log.d("MainActivity", "onTabSelected called");
         Object tag = tab.getTag();
         if (tag != null) {
             selectedCategoryId = (int) tag;
+            Log.d("MainActivity", "Tab selected, categoryId: " + selectedCategoryId);
             loadProductsForCategory(selectedCategoryId);
+        } else {
+            Log.d("MainActivity", "Tab has no tag");
         }
     }
 
@@ -199,7 +205,12 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
             }
             
             if (!allGranted) {
-                Toast.makeText(this, "Bluetooth permissions are required for device discovery and connection", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Bluetooth permissions are required for device discovery and connection. Core app functionality will work without them.", Toast.LENGTH_LONG).show();
+            } else {
+                // Permissions granted, try to start Bluetooth server if not already started
+                if (checkBluetoothState()) {
+                    startBluetoothServer();
+                }
             }
         }
     }
@@ -235,6 +246,9 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         productDao = db.productDao();
         categoryDao = db.categoryDao();
         
+        // Create default categories if database is empty
+        createDefaultCategoriesIfNeeded();
+        
         // Initialize ViewModel
         savedStateViewModel = new ViewModelProvider(this, ViewModelProvider.AndroidViewModelFactory
                 .getInstance(getApplication())).get(SavedStateViewModel.class);
@@ -248,26 +262,10 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         // Initialize Bluetooth adapter
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         
-        // Check if device supports Bluetooth
-        if (bluetoothAdapter == null) {
-            Toast.makeText(this, "This device doesn't support Bluetooth", Toast.LENGTH_LONG).show();
-            return;
-        }
-        
-        // Request runtime permissions
-        if (!checkAndRequestPermissions()) {
-            return;
-        }
-        
-        // Ensure Bluetooth is enabled
-        if (!bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }
-
-        // Initialize views
+        // Initialize views first (before Bluetooth setup)
         recyclerView = findViewById(R.id.recyclerView);
         fabAdd = findViewById(R.id.fabAdd);
+        Log.d("MainActivity", "FAB found: " + (fabAdd != null ? "YES" : "NULL"));
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         productList = new ArrayList<>();
         adapter = new ProductAdapter(this, productList, this::updateProductPositions);
@@ -279,16 +277,50 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         recyclerView.addItemDecoration(dividerItemDecoration);
 
         // Set up FAB click listener
-        fabAdd.setOnClickListener(v -> showAddProductDialog());
+        Log.d("MainActivity", "Setting up FAB click listener");
+        if (fabAdd != null) {
+            fabAdd.setOnClickListener(v -> {
+                Log.d("MainActivity", "FAB clicked! selectedCategoryId: " + selectedCategoryId);
+                showAddProductDialog();
+            });
+            Log.d("MainActivity", "FAB click listener set successfully");
+        } else {
+            Log.e("MainActivity", "FAB is null, cannot set click listener");
+        }
 
         // Load categories and set up tab selection
         // Set up tab layout
         tabLayout.addOnTabSelectedListener(this);
 
-        fabBurger = findViewById(R.id.fabBurger);
-        fabBurger.setOnClickListener(v -> showMainMenu());
+        // Set up bottom bar button click listeners
+        findViewById(R.id.btnCategories).setOnClickListener(v -> {
+            Intent intent = new Intent(this, CategoryActivity.class);
+            startActivity(intent);
+        });
         
-        // Start Bluetooth server
+        findViewById(R.id.btnSync).setOnClickListener(v -> startDeviceDiscovery());
+        
+        // Initialize Bluetooth after UI setup
+        initializeBluetoothAfterUI();
+    }
+
+    private void initializeBluetoothAfterUI() {
+        // Check if device supports Bluetooth
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "This device doesn't support Bluetooth", Toast.LENGTH_LONG).show();
+            return;
+        }
+        
+        // Request runtime permissions (non-blocking)
+        checkAndRequestPermissions();
+        
+        // Ensure Bluetooth is enabled (non-blocking)
+        if (!bluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
+        
+        // Start Bluetooth server if possible
         if (checkBluetoothState()) {
             startBluetoothServer();
         }
@@ -318,44 +350,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         builder.show();
     }
     
-    private void showMainMenu() {
-        // Create a popup menu anchored to the fabBurger button
-        android.widget.PopupMenu popup = new android.widget.PopupMenu(this, fabBurger);
-        
-        // Inflate our menu resource
-        popup.getMenuInflater().inflate(R.menu.main_menu, popup.getMenu());
-        
-        // Set up click listeners for each menu item
-        popup.setOnMenuItemClickListener(item -> {
-            int id = item.getItemId();
-            
-            if (id == R.id.action_save_state) {
-                showSaveStateDialog();
-                return true;
-            } else if (id == R.id.action_restore_state) {
-                showRestoreStateDialog();
-                return true;
-            } else if (id == R.id.action_sync) {
-                startDeviceDiscovery();
-                return true;
-            } else if (id == R.id.action_categories) {
-                Intent intent = new Intent(this, CategoryActivity.class);
-                startActivity(intent);
-                return true;
-            } else if (id == R.id.action_reset_db) {
-                // Reset the database
-                AppDatabase.resetDatabase(this);
-                // Restart the activity to reinitialize everything
-                finish();
-                startActivity(getIntent());
-                return true;
-            }
-            return false;
-        });
-        
-        // Show the popup menu
-        popup.show();
-    }
+    // Note: Menu functionality is handled by the toolbar menu in the layout
     
     private void saveState(String name) {
         // Show progress dialog
@@ -523,6 +518,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                 .show();
     }
 
+    @SuppressLint("MissingPermission")
     private void startDiscovery() {
         if (isDiscovering) {
             cancelDiscovery();
@@ -564,6 +560,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
 
     private final BroadcastReceiver discoveryReceiver = new BroadcastReceiver() {
         @Override
+        @SuppressLint("MissingPermission")
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
@@ -594,6 +591,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         }
     };
 
+    @SuppressLint("MissingPermission")
     private void cancelDiscovery() {
         if (!isDiscovering) return;
         
@@ -609,6 +607,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         }
     }
 
+    @SuppressLint("MissingPermission")
     private void connectToDevice(BluetoothDevice device) {
         // TODO: Implement connection logic
         Toast.makeText(this, "Connecting to " + device.getName(), Toast.LENGTH_SHORT).show();
@@ -628,37 +627,52 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     }
 
     private void showAddProductDialog() {
+        Log.d("MainActivity", "showAddProductDialog called, selectedCategoryId: " + selectedCategoryId);
         if (selectedCategoryId == -1) {
+            Log.d("MainActivity", "No category selected, showing toast");
             Toast.makeText(this, "Please select a category first", Toast.LENGTH_SHORT).show();
             return;
         }
+        Log.d("MainActivity", "Category selected, showing dialog");
 
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_product, null);
         dialog.setContentView(dialogView);
+        Log.d("MainActivity", "Dialog created, about to show");
 
         EditText etProductName = dialogView.findViewById(R.id.etProductName);
-        // Hide quantity field since we're using checkboxes now
-        View quantityLayout = dialogView.findViewById(R.id.quantityLayout);
-        if (quantityLayout != null) {
-            quantityLayout.setVisibility(View.GONE);
-        }
+        EditText etQuantity = dialogView.findViewById(R.id.etQuantity);
         
-        ImageButton btnAdd = dialogView.findViewById(R.id.btnAdd);
+        MaterialButton btnAdd = dialogView.findViewById(R.id.btnAdd);
+        MaterialButton btnCancel = dialogView.findViewById(R.id.btnCancel);
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
 
         btnAdd.setOnClickListener(v -> {
             String productName = etProductName.getText().toString().trim();
+            String quantityStr = etQuantity.getText().toString().trim();
 
             if (!productName.isEmpty()) {
+                int quantity = 1; // Default quantity
+                try {
+                    if (!quantityStr.isEmpty()) {
+                        quantity = Integer.parseInt(quantityStr);
+                        if (quantity <= 0) quantity = 1;
+                    }
+                } catch (NumberFormatException e) {
+                    quantity = 1;
+                }
+
                 // Get next position for the product in this category
                 int nextPosition = 0;
                 if (!productList.isEmpty()) {
                     nextPosition = productList.get(productList.size() - 1).getPosition() + 1;
                 }
 
-                // Create and add the product (default isChecked to false)
+                // Create and add the product
                 Product product = new Product(
                     productName,
+                    quantity,
                     false, // isChecked
                     nextPosition,
                     selectedCategoryId,
@@ -679,36 +693,42 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
             }
         });
 
+        Log.d("MainActivity", "Calling dialog.show()");
         dialog.show();
+        Log.d("MainActivity", "Dialog.show() called");
     }
 
     private void updateProductPositions() {
         long currentTime = System.currentTimeMillis();
         Executors.newSingleThreadExecutor().execute(() -> {
-            for (int i = 0; i < adapter.products.size(); i++) {
-                Product product = adapter.products.get(i);
-                // Update the product's lastModified timestamp
-                product.setLastModified(currentTime);
-                
-                // Get the entity from DB and update it
-                ProductEntity entity = productDao.getByName(product.getName());
-                if (entity != null) {
-                    entity.setPosition(i);
-                    entity.setLastModified(currentTime);
-                    productDao.update(entity);
+            try {
+                for (int i = 0; i < adapter.products.size(); i++) {
+                    Product product = adapter.products.get(i);
+                    // Update the product's lastModified timestamp
+                    product.setLastModified(currentTime);
+                    product.setPosition(i);
+                    
+                    // Update in database using the product's ID
+                    ProductEntity entity = product.toEntity();
+                    if (entity.getId() > 0) { // Only update if it has a valid ID
+                        productDao.update(entity);
+                        Log.d("MainActivity", "Updated position for product ID " + entity.getId() + " to position " + i);
+                    } else {
+                        Log.w("MainActivity", "Product has no ID, cannot update position: " + product.getName());
+                    }
                 }
                 
-                // Update the product in the UI list
-                final int position = i;
+                // Update the UI
                 runOnUiThread(() -> {
-                    if (position < adapter.products.size()) {
-                        adapter.notifyItemChanged(position);
-                    }
+                    adapter.notifyDataSetChanged();
                 });
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error updating product positions", e);
             }
         });
     }
 
+    @SuppressLint("MissingPermission")
     private void startServer() {
         try {
             serverSocket = bluetoothAdapter.listenUsingRfcommWithServiceRecord("ShoppingList", MY_UUID);
@@ -759,22 +779,23 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     int fromPosition = source.getAdapterPosition();
                     int toPosition = target.getAdapterPosition();
                     
-                    if (fromPosition < toPosition) {
-                        for (int i = fromPosition; i < toPosition; i++) {
-                            Collections.swap(products, i, i + 1);
+                    if (fromPosition != toPosition) {
+                        // Move the item to the new position
+                        Product movedProduct = products.remove(fromPosition);
+                        products.add(toPosition, movedProduct);
+                        
+                        // Update positions for all affected products
+                        for (int i = 0; i < products.size(); i++) {
+                            products.get(i).setPosition(i);
                         }
-                    } else {
-                        for (int i = fromPosition; i > toPosition; i--) {
-                            Collections.swap(products, i, i - 1);
+                        
+                        // Update positions in the database by running the callback on the UI thread
+                        if (updatePositionsCallback != null) {
+                            activity.runOnUiThread(updatePositionsCallback);
                         }
-                    }
-                    
-                    // Update positions in the database by running the callback on the UI thread
-                    if (updatePositionsCallback != null) {
-                        activity.runOnUiThread(updatePositionsCallback);
-                    }
 
-                    notifyItemMoved(fromPosition, toPosition);
+                        notifyItemMoved(fromPosition, toPosition);
+                    }
                     return true;
                 }
 
@@ -802,28 +823,63 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     });
                     
                     if (direction == ItemTouchHelper.RIGHT) {
-                        // Swipe right - delete the item
-                        activity.runOnUiThread(() -> {
-                            if (position < products.size()) {
-                                Product removed = products.remove(position);
-                                notifyItemRemoved(position);
-                                
-                                // Delete from database
-                                Executors.newSingleThreadExecutor().execute(() -> {
-                                    activity.productDao.delete(removed.toEntity());
-                                });
-                            }
-                        });
+                        // Swipe right - decrease quantity, cross out at 0, remove on next swipe
+                        if (originalProduct.getQuantity() == 0) {
+                            // Item is already at 0 quantity (crossed out), so remove it
+                            activity.runOnUiThread(() -> {
+                                if (position < products.size()) {
+                                    Product removed = products.remove(position);
+                                    notifyItemRemoved(position);
+                                    
+                                    // Delete from database
+                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                        activity.productDao.delete(removed.toEntity());
+                                    });
+                                }
+                            });
+                        } else {
+                            // Decrease quantity (may reach 0, which will cross it out)
+                            int newQuantity = Math.max(0, originalProduct.getQuantity() - 1);
+                            final Product updated = new Product(
+                                originalProduct.getName(),
+                                newQuantity,
+                                originalProduct.isChecked(),
+                                originalProduct.getPosition(),
+                                originalProduct.getCategoryId(),
+                                System.currentTimeMillis()
+                            );
+                            updated.setId(originalProduct.getId()); // Preserve the original ID
+                            
+                            activity.runOnUiThread(() -> {
+                                if (position < products.size()) {
+                                    products.set(position, updated);
+                                    notifyItemChanged(position);
+                                    
+                                    // Update in database
+                                    Executors.newSingleThreadExecutor().execute(() -> {
+                                        try {
+                                            ProductEntity entity = updated.toEntity();
+                                            Log.d("MainActivity", "Updating product ID " + entity.getId() + " with quantity " + entity.getQuantity());
+                                            activity.productDao.update(entity);
+                                        } catch (Exception e) {
+                                            Log.e("MainActivity", "Error updating product in database", e);
+                                        }
+                                    });
+                                }
+                            });
+                        }
                     } else if (direction == ItemTouchHelper.LEFT) {
-                        // Swipe left - toggle checked state
-                        final boolean newCheckedState = !originalProduct.isChecked();
+                        // Swipe left - increase quantity (minimum 1, so crossed-out items get restored)
+                        int newQuantity = Math.max(1, originalProduct.getQuantity() + 1);
                         final Product updated = new Product(
                             originalProduct.getName(),
-                            newCheckedState,
+                            newQuantity,
+                            originalProduct.isChecked(),
                             originalProduct.getPosition(),
                             originalProduct.getCategoryId(),
                             System.currentTimeMillis()
                         );
+                        updated.setId(originalProduct.getId()); // Preserve the original ID
                         
                         activity.runOnUiThread(() -> {
                             if (position < products.size()) {
@@ -832,7 +888,13 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                                 
                                 // Update in database
                                 Executors.newSingleThreadExecutor().execute(() -> {
-                                    activity.productDao.insert(updated.toEntity());
+                                    try {
+                                        ProductEntity entity = updated.toEntity();
+                                        Log.d("MainActivity", "Updating product ID " + entity.getId() + " with quantity " + entity.getQuantity());
+                                        activity.productDao.update(entity);
+                                    } catch (Exception e) {
+                                        Log.e("MainActivity", "Error updating product in database", e);
+                                    }
                                 });
                             }
                         });
@@ -892,23 +954,23 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
         }
         
         public void onItemMove(int fromPosition, int toPosition) {
-            // Update the items in the list
-            if (fromPosition < toPosition) {
-                for (int i = fromPosition; i < toPosition; i++) {
-                    Collections.swap(products, i, i + 1);
+            if (fromPosition != toPosition) {
+                // Move the item to the new position
+                Product movedProduct = products.remove(fromPosition);
+                products.add(toPosition, movedProduct);
+                
+                // Update positions for all affected products
+                for (int i = 0; i < products.size(); i++) {
+                    products.get(i).setPosition(i);
                 }
-            } else {
-                for (int i = fromPosition; i > toPosition; i--) {
-                    Collections.swap(products, i, i - 1);
+                
+                // Notify the adapter that the item has moved
+                notifyItemMoved(fromPosition, toPosition);
+                
+                // Update positions in the database by running the callback on the UI thread
+                if (updatePositionsCallback != null) {
+                    activity.runOnUiThread(updatePositionsCallback);
                 }
-            }
-            
-            // Notify the adapter that the item has moved
-            notifyItemMoved(fromPosition, toPosition);
-            
-            // Update positions in the database by running the callback on the UI thread
-            if (updatePositionsCallback != null) {
-                activity.runOnUiThread(updatePositionsCallback);
             }
         }
 
@@ -920,16 +982,16 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
             ProductViewHolder(View itemView) {
                 super(itemView);
                 txtProductName = itemView.findViewById(R.id.txtProductName);
-                txtQuantity = itemView.findViewById(R.id.txtQuantity);
-                dragHandle = itemView.findViewById(R.id.drag_handle);
+                txtQuantity = itemView.findViewById(R.id.quantityChip);
+                dragHandle = itemView.findViewById(R.id.dragHandle);
             }
 
             void bind(Product product) {
                 txtProductName.setText(product.getName());
-                txtQuantity.setText(product.isChecked() ? "✓" : "");
+                txtQuantity.setText(String.valueOf(product.getQuantity()));
 
-                // Strikethrough if checked
-                if (product.isChecked()) {
+                // Strikethrough if checked (crossed out when quantity reaches 0)
+                if (product.isChecked() || product.getQuantity() == 0) {
                     txtProductName.setPaintFlags(txtProductName.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
                     txtQuantity.setPaintFlags(txtQuantity.getPaintFlags() | android.graphics.Paint.STRIKE_THRU_TEXT_FLAG);
                 } else {
@@ -1081,10 +1143,12 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     }
 
     private void loadCategoriesAndTabs() {       
+        Log.d("MainActivity", "loadCategoriesAndTabs called");
         Executors.newSingleThreadExecutor().execute(() -> {
             try {                
                 // Get all categories, ordered by position
                 categories = categoryDao.getAllSync();
+                Log.d("MainActivity", "Found " + categories.size() + " categories");
                 
                 // Sort categories by position to ensure correct order
                 Collections.sort(categories, (c1, c2) -> Integer.compare(c1.getPosition(), c2.getPosition()));
@@ -1113,6 +1177,7 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                     // Select the first tab if none is selected
                     if (!categories.isEmpty() && tabLayout.getSelectedTabPosition() == -1) {
                         selectedCategoryId = categories.get(0).getId();
+                        Log.d("MainActivity", "Auto-selecting first category: " + selectedCategoryId);
                         tabLayout.selectTab(tabLayout.getTabAt(0));
                         loadProductsForCategory(selectedCategoryId);
                     } else if (selectedCategoryId != -1) {
@@ -1129,6 +1194,34 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
                 e.printStackTrace();
                 // If there's an error, try to recover by resetting the category order
                 runOnUiThread(this::resetCategoryOrder);
+            }
+        });
+    }
+    
+    private void createDefaultCategoriesIfNeeded() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                // Check if categories already exist
+                List<CategoryEntity> existingCategories = categoryDao.getAllSync();
+                if (existingCategories.isEmpty()) {
+                    Log.d("MainActivity", "No categories found, creating default categories");
+                    
+                    // Create default categories
+                    String[] defaultCategories = {
+                        "Groceries", "Household", "Personal Care", "Electronics", "Clothing"
+                    };
+                    
+                    for (int i = 0; i < defaultCategories.length; i++) {
+                        CategoryEntity category = new CategoryEntity(defaultCategories[i]);
+                        category.setPosition(i);
+                        categoryDao.insert(category);
+                    }
+                    
+                    // Reload categories and tabs on main thread
+                    runOnUiThread(this::loadCategoriesAndTabs);
+                }
+            } catch (Exception e) {
+                Log.e("MainActivity", "Error creating default categories", e);
             }
         });
     }
@@ -1156,11 +1249,15 @@ public class MainActivity extends AppCompatActivity implements TabLayout.OnTabSe
     private void loadProductsForCategory(int categoryId) {
         Executors.newSingleThreadExecutor().execute(() -> {
             java.util.List<ProductEntity> entities = productDao.getByCategory(categoryId);
-            productList.clear();
-            for (ProductEntity entity : entities) {
-                productList.add(Product.fromEntity(entity));
-            }
-            runOnUiThread(() -> adapter.notifyDataSetChanged());
+            runOnUiThread(() -> {
+                productList.clear();
+                for (ProductEntity entity : entities) {
+                    productList.add(Product.fromEntity(entity));
+                }
+                // Sort by position to maintain correct order
+                productList.sort((p1, p2) -> Integer.compare(p1.getPosition(), p2.getPosition()));
+                adapter.notifyDataSetChanged();
+            });
         });
     }
 }

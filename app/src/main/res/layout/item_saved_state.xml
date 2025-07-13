@@ -5,68 +5,91 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginHorizontal="8dp"
+    android:layout_marginHorizontal="4dp"
     android:layout_marginVertical="4dp"
-    android:foreground="?android:attr/selectableItemBackground"
-    app:cardBackgroundColor="?attr/colorSurface"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="1dp"
-    app:strokeColor="@color/design_default_color_primary"
-    app:strokeWidth="0.5dp">
+    app:cardCornerRadius="12dp"
+    app:cardElevation="2dp"
+    app:rippleColor="?attr/colorPrimary"
+    app:strokeWidth="0dp"
+    style="@style/Widget.Material3.CardView.Elevated">
 
-    <RelativeLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/selectableItemBackground"
-        android:padding="12dp">
+        android:padding="16dp"
+        android:minHeight="72dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
+        <!-- State icon -->
+        <ImageView
+            android:id="@+id/stateIcon"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:src="@drawable/ic_folder_open"
+            android:background="?attr/colorSurfaceContainerHighest"
+            android:padding="6dp"
+            app:tint="?attr/colorPrimary"
+            android:contentDescription="Saved state"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <!-- State name -->
+        <TextView
+            android:id="@+id/textViewStateName"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_toStartOf="@+id/buttonDelete"
-            android:layout_toLeftOf="@+id/buttonDelete"
-            android:orientation="vertical"
-            android:paddingEnd="8dp"
-            android:paddingRight="8dp">
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintStart_toEndOf="@id/stateIcon"
+            app:layout_constraintEnd_toStartOf="@id/buttonDelete"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/textViewStateDate"
+            app:layout_constraintVertical_chainStyle="packed"
+            tools:text="My Shopping List" />
 
-            <TextView
-                android:id="@+id/textViewStateName"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceSubtitle1"
-                android:textColor="?android:attr/textColorPrimary"
-                tools:text="My Shopping List" />
+        <!-- State creation date -->
+        <TextView
+            android:id="@+id/textViewStateDate"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="8dp"
+            android:layout_marginTop="2dp"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            app:layout_constraintStart_toEndOf="@id/stateIcon"
+            app:layout_constraintEnd_toStartOf="@id/buttonDelete"
+            app:layout_constraintTop_toBottomOf="@id/textViewStateName"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:text="2 minutes ago" />
 
-            <TextView
-                android:id="@+id/textViewStateDate"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textAppearance="?attr/textAppearanceCaption"
-                android:textColor="?android:attr/textColorSecondary"
-                tools:text="2 minutes ago" />
-
-        </LinearLayout>
-
-        <ImageButton
+        <!-- Modern delete button -->
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/buttonDelete"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentRight="true"
-            android:layout_centerVertical="true"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_marginStart="8dp"
-            android:layout_marginLeft="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:insetLeft="0dp"
+            android:insetRight="0dp"
+            app:icon="@drawable/ic_delete"
+            app:iconSize="20dp"
+            app:iconTint="?attr/colorError"
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
             android:contentDescription="@string/delete"
-            android:padding="12dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_delete"
             android:visibility="gone"
-            app:tint="?attr/colorError" />
+            style="@style/Widget.Material3.Button.TextButton"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            tools:visibility="visible" />
 
-    </RelativeLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </com.google.android.material.card.MaterialCardView>

@@ -7,7 +7,11 @@
       "Bash(./gradlew checkstyle:*)",
       "Bash(find:*)",
       "Bash(./gradlew compileDebugJavaWithJavac:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(./gradlew:*)",
+      "WebFetch(domain:)",
+      "Bash(awk:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

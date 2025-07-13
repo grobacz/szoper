@@ -117,8 +117,8 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductV
         public ProductViewHolder(@NonNull View itemView) {
             super(itemView);
             txtProductName = itemView.findViewById(R.id.txtProductName);
-            txtQuantity = itemView.findViewById(R.id.txtQuantity);
-            dragHandle = itemView.findViewById(R.id.drag_handle);
+            txtQuantity = itemView.findViewById(R.id.quantityChip);
+            dragHandle = itemView.findViewById(R.id.dragHandle);
 
             itemView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
