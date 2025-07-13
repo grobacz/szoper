@@ -13,7 +13,7 @@ import com.grobacz.shoppinglistapp.model.CategoryEntity;
 import com.grobacz.shoppinglistapp.model.ProductEntity;
 import com.grobacz.shoppinglistapp.model.SavedState;
 
-@Database(entities = {ProductEntity.class, CategoryEntity.class, SavedState.class}, version = 8, exportSchema = false)
+@Database(entities = {ProductEntity.class, CategoryEntity.class, SavedState.class}, version = 9, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     // Migration from version 3 to 4: Add lastModified column to products table
     public static final Migration MIGRATION_3_4 = new Migration(3, 4) {
@@ -63,6 +63,29 @@ public abstract class AppDatabase extends RoomDatabase {
         public void migrate(SupportSQLiteDatabase database) {
             // This migration ensures the position column exists with a default value of 0
             database.execSQL("ALTER TABLE categories ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+    
+    // Migration from version 8 to 9: Remove color column from categories table
+    public static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(SupportSQLiteDatabase database) {
+            // SQLite doesn't support DROP COLUMN, so we need to recreate the table
+            // 1. Create new table without color column
+            database.execSQL("CREATE TABLE categories_new (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "name TEXT, " +
+                    "position INTEGER NOT NULL DEFAULT 0)");
+            
+            // 2. Copy data from old table (excluding color column)
+            database.execSQL("INSERT INTO categories_new (id, name, position) " +
+                    "SELECT id, name, position FROM categories");
+            
+            // 3. Drop old table
+            database.execSQL("DROP TABLE categories");
+            
+            // 4. Rename new table to original name
+            database.execSQL("ALTER TABLE categories_new RENAME TO categories");
         }
     };
     
@@ -117,7 +140,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public static AppDatabase getDatabase(final android.content.Context context) {
         return Room.databaseBuilder(context.getApplicationContext(),
                             AppDatabase.class, "shopping_list_database")
-                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .fallbackToDestructiveMigration() // This will clear the database on version mismatch
                     .build();
     }

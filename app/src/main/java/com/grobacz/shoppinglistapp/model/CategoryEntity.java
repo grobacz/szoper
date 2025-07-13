@@ -8,12 +8,10 @@ public class CategoryEntity {
     @PrimaryKey(autoGenerate = true)
     private int id;
     private String name;
-    private int color;
     private int position;
 
-    public CategoryEntity(String name, int color) {
+    public CategoryEntity(String name) {
         this.name = name;
-        this.color = color;
     }
 
     public int getId() {
@@ -30,14 +28,6 @@ public class CategoryEntity {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public int getColor() {
-        return color;
-    }
-
-    public void setColor(int color) {
-        this.color = color;
     }
 
     public int getPosition() {

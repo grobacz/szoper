@@ -13,8 +13,6 @@ import android.view.DragEvent;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
-import android.graphics.Color;
-import android.graphics.drawable.Drawable;
 import android.view.ViewGroup;
 import android.view.Gravity;
 import android.view.inputmethod.EditorInfo;
@@ -522,7 +520,7 @@ public class CategoryActivity extends AppCompatActivity {
         String name = editText.getText().toString().trim();
         if (!name.isEmpty()) {
             new Thread(() -> {
-                categoryDao.insert(new CategoryEntity(name, 0));
+                categoryDao.insert(new CategoryEntity(name));
                 runOnUiThread(() -> {
                     editText.setText("");
                     refreshList(listView);
