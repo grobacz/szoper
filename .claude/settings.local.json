@@ -11,7 +11,9 @@
       "Bash(./gradlew:*)",
       "WebFetch(domain:)",
       "Bash(awk:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(adb:*)",
+      "Bash(pkill:*)"
     ],
     "deny": []
   }

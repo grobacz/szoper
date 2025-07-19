@@ -3,7 +3,7 @@ package com.grobacz.shoppinglistapp;
 import android.app.AlertDialog;
 import android.app.Activity;
 import android.content.Context;
-import android.os.AsyncTask;
+// import android.os.AsyncTask; // Deprecated - replaced with Executors
 import android.os.Build;
 import android.os.Bundle;
 import android.os.VibrationEffect;
@@ -36,6 +36,7 @@ import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
 
 import com.grobacz.shoppinglistapp.dao.CategoryDao;
 import com.grobacz.shoppinglistapp.dao.ProductDao;
@@ -75,7 +76,7 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
     // ViewHolder pattern for better performance
     private static class ViewHolder {
         TextView categoryName;
-        ImageButton deleteButton;
+        com.google.android.material.button.MaterialButton deleteButton;
         ImageView dragHandle;
         int position;
     }
@@ -120,33 +121,45 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
                 Log.e("CategoryAdapter", "onItemLongClickListener is null!");
             }
             
-            // Set up delete button click listener
-            holder.deleteButton.setOnClickListener(v -> {
-                int pos = (int) v.getTag(R.id.tag_position);
-                Log.d("CategoryAdapter", "Delete button clicked for position: " + pos);
-                CategoryEntity cat = getItem(pos);
-                if (cat != null) {
-                    Log.d("CategoryAdapter", "Deleting category: " + cat.getName());
-                    new CheckProductsAndDeleteTask(context, cat, categoryDao, productDao, () -> 
-                        activity.runOnUiThread(() -> {
-                            try {
-                                List<CategoryEntity> updatedList = categoryDao.getAllSync();
-                                Log.d("CategoryActivity", "After deletion, got " + updatedList.size() + " categories");
-                                clear();
-                                addAll(updatedList);
-                                notifyDataSetChanged();
-                            } catch (Exception e) {
-                                Log.e("CategoryAdapter", "Error updating after delete", e);
-                            }
-                        })
-                    ).execute();
-                } else {
-                    Log.e("CategoryAdapter", "Category is null at position: " + pos);
-                }
-            });
         } else {
             holder = (ViewHolder) itemView.getTag();
         }
+        
+        // Set up delete button click listener for both new and recycled views
+        Log.d("CategoryAdapter", "Setting up delete button click listener for position: " + position);
+        holder.deleteButton.setClickable(true);
+        holder.deleteButton.setOnClickListener(v -> {
+            Log.d("CategoryAdapter", "DELETE BUTTON CLICKED!");
+            Object tagObj = v.getTag(R.id.tag_position);
+            Log.d("CategoryAdapter", "Tag object: " + tagObj);
+            
+            if (tagObj == null) {
+                Log.e("CategoryAdapter", "Tag is null! Using holder position: " + holder.position);
+                tagObj = holder.position;
+            }
+            
+            int pos = (int) tagObj;
+            Log.d("CategoryAdapter", "Delete button clicked for position: " + pos);
+            CategoryEntity cat = getItem(pos);
+            if (cat != null) {
+                Log.d("CategoryAdapter", "Deleting category: " + cat.getName());
+                new CheckProductsAndDeleteTask(context, cat, categoryDao, productDao, () -> 
+                    activity.runOnUiThread(() -> {
+                        try {
+                            List<CategoryEntity> updatedList = categoryDao.getAllSync();
+                            Log.d("CategoryActivity", "After deletion, got " + updatedList.size() + " categories");
+                            clear();
+                            addAll(updatedList);
+                            notifyDataSetChanged();
+                        } catch (Exception e) {
+                            Log.e("CategoryAdapter", "Error updating after delete", e);
+                        }
+                    })
+                ).execute();
+            } else {
+                Log.e("CategoryAdapter", "Category is null at position: " + pos);
+            }
+        });
         
         // Get the category for this position
         CategoryEntity category = getItem(position);
@@ -174,13 +187,12 @@ class CategoryAdapter extends ArrayAdapter<CategoryEntity> {
     }
 }
 
-class CheckProductsAndDeleteTask extends AsyncTask<Void, Void, Boolean> {
+class CheckProductsAndDeleteTask {
     private final Context context;
     private final CategoryEntity category;
     private final CategoryDao categoryDao;
     private final ProductDao productDao;
     private final Runnable onSuccess;
-    private int productCount;
 
     public CheckProductsAndDeleteTask(Context context, CategoryEntity category, 
                                     CategoryDao categoryDao, ProductDao productDao,
@@ -192,34 +204,47 @@ class CheckProductsAndDeleteTask extends AsyncTask<Void, Void, Boolean> {
         this.onSuccess = onSuccess;
     }
 
-    @Override
-    protected Boolean doInBackground(Void... voids) {
-        List<ProductEntity> products = productDao.getByCategory(category.getId());
-        productCount = products.size();
-        return productCount > 0;
-    }
-
-    @Override
-    protected void onPostExecute(Boolean hasProducts) {
-        if (hasProducts) {
-            // Show confirmation dialog for categories with products
-            new AlertDialog.Builder(context)
-                .setTitle(R.string.delete_category)
-                .setMessage(R.string.category_has_products)
-                .setPositiveButton(R.string.delete, (dialog, which) -> deleteCategory())
-                .setNegativeButton(R.string.cancel, null)
-                .show();
-        } else {
-            // No products, delete directly
-            deleteCategory();
-        }
+    public void execute() {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                List<ProductEntity> products = productDao.getByCategory(category.getId());
+                boolean hasProducts = products.size() > 0;
+                
+                ((android.app.Activity) context).runOnUiThread(() -> {
+                    if (hasProducts) {
+                        // Show confirmation dialog for categories with products
+                        new AlertDialog.Builder(context)
+                            .setTitle(R.string.delete_category)
+                            .setMessage(R.string.category_has_products)
+                            .setPositiveButton(R.string.delete, (dialog, which) -> deleteCategory())
+                            .setNegativeButton(R.string.cancel, null)
+                            .show();
+                    } else {
+                        // No products, delete directly
+                        deleteCategory();
+                    }
+                });
+            } catch (Exception e) {
+                android.util.Log.e("CategoryActivity", "Error checking products for category", e);
+                ((android.app.Activity) context).runOnUiThread(() -> {
+                    android.widget.Toast.makeText(context, "Error checking category", android.widget.Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void deleteCategory() {
-        new Thread(() -> {
-            categoryDao.delete(category);
-            ((android.app.Activity) context).runOnUiThread(onSuccess);
-        }).start();
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                categoryDao.delete(category);
+                ((android.app.Activity) context).runOnUiThread(onSuccess);
+            } catch (Exception e) {
+                android.util.Log.e("CategoryActivity", "Error deleting category", e);
+                ((android.app.Activity) context).runOnUiThread(() -> {
+                    android.widget.Toast.makeText(context, "Error deleting category", android.widget.Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 }
 
@@ -238,20 +263,35 @@ public class CategoryActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_category);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().hide();
+        
+        try {
+            setContentView(R.layout.activity_category);
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().hide();
+            }
+
+            db = AppDatabaseSingleton.getInstance(this);
+            categoryDao = db.categoryDao();
+            productDao = db.productDao();
+
+            // Initialize the list first
+            categoryList = new ArrayList<>();
+        } catch (Exception e) {
+            Log.e("CategoryActivity", "Error in onCreate", e);
+            Toast.makeText(this, "Error loading categories", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
         }
-
-        db = AppDatabaseSingleton.getInstance(this);
-        categoryDao = db.categoryDao();
-        productDao = db.productDao();
-
-        // Initialize the list first
-        categoryList = new ArrayList<>();
         
         // Initialize the ListView field (use RecyclerView as ListView for now)
         listView = findViewById(R.id.categoryRecyclerView);
+        if (listView == null) {
+            Log.e("CategoryActivity", "ListView not found in layout");
+            Toast.makeText(this, "Layout error", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
+        
         // Set up ListView
         listView.setVisibility(View.VISIBLE);
         EditText editText = findViewById(R.id.categoryEditText);
@@ -260,6 +300,13 @@ public class CategoryActivity extends AppCompatActivity {
         Button saveButton = findViewById(R.id.btnSave);
         MaterialCardView inputCard = findViewById(R.id.inputCard);
         View inputBar = inputCard; // Use inputCard as inputBar for compatibility
+        
+        if (editText == null || saveButton == null || backButton == null || inputCard == null) {
+            Log.e("CategoryActivity", "Required UI elements not found in layout");
+            Toast.makeText(this, "Layout error", Toast.LENGTH_SHORT).show();
+            finish();
+            return;
+        }
 
         // Set up the adapter with the empty list first
         adapter = new CategoryAdapter(this, categoryList, categoryDao, productDao);
@@ -636,6 +683,15 @@ public class CategoryActivity extends AppCompatActivity {
         new Thread(() -> {
             try {
                 Log.d("CategoryActivity", "Loading categories from database");
+                if (categoryDao == null) {
+                    Log.e("CategoryActivity", "CategoryDao is null");
+                    runOnUiThread(() -> {
+                        Toast.makeText(CategoryActivity.this, "Database error", Toast.LENGTH_SHORT).show();
+                        finish();
+                    });
+                    return;
+                }
+                
                 final List<CategoryEntity> newList = categoryDao.getAllSync();
                 Log.d("CategoryActivity", "Loaded " + (newList != null ? newList.size() : 0) + " categories from database");
                 
@@ -703,8 +759,22 @@ public class CategoryActivity extends AppCompatActivity {
                     Toast.makeText(CategoryActivity.this, "Error loading categories: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     
                     // On error, ensure we show the empty view
-                    if (listView.getEmptyView() != null) {
+                    if (listView != null && listView.getEmptyView() != null) {
                         listView.getEmptyView().setVisibility(View.VISIBLE);
+                    }
+                    
+                    // If it's a database migration issue, suggest reset
+                    if (e.getMessage() != null && (e.getMessage().contains("migration") || e.getMessage().contains("no such column"))) {
+                        new android.app.AlertDialog.Builder(CategoryActivity.this)
+                            .setTitle("Database Error")
+                            .setMessage("Database migration failed. Reset app data?")
+                            .setPositiveButton("Reset", (dialog, which) -> {
+                                // Reset database
+                                AppDatabase.resetDatabase(CategoryActivity.this);
+                                finish();
+                            })
+                            .setNegativeButton("Cancel", (dialog, which) -> finish())
+                            .show();
                     }
                 });
             }
