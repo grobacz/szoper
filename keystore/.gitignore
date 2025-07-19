@@ -1,0 +1,12 @@
+# Ignore all keystore files and sensitive information
+*.keystore
+*.jks
+*.p12
+gradle.properties
+*.properties
+*.key
+*.pem
+
+# Only allow README and .gitignore
+!README.md
+!.gitignore

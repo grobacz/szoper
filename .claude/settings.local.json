@@ -13,7 +13,10 @@
       "Bash(awk:*)",
       "Bash(sed:*)",
       "Bash(adb:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(ls:*)",
+      "Bash(gradle:*)",
+      "Bash(echo $ANDROID_HOME)"
     ],
     "deny": []
   }
