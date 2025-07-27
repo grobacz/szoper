@@ -71,3 +71,13 @@
 -keepclasseswithmembernames class * {
     native <methods>;
 }
+
+# Keep third-party optional dependencies (OkHttp, Logging)
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+-dontwarn org.slf4j.**
+-keep class org.bouncycastle.** { *; }
+-keep class org.conscrypt.** { *; }
+-keep class org.openjsse.** { *; }
+-keep class org.slf4j.** { *; }

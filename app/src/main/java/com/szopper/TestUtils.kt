@@ -9,12 +9,14 @@ object TestUtils {
     fun createTestProduct(
         name: String = "Test Product",
         isBought: Boolean = false,
+        position: Int = 0,
         createdAt: Long = System.currentTimeMillis(),
         updatedAt: Long = System.currentTimeMillis()
     ): Product {
         return Product().apply {
             this.name = name
             this.isBought = isBought
+            this.position = position
             this.createdAt = createdAt
             this.updatedAt = updatedAt
         }
@@ -24,6 +26,7 @@ object TestUtils {
         id: String = ObjectId().toHexString(),
         name: String = "Test Product",
         isBought: Boolean = false,
+        position: Int = 0,
         createdAt: Long = System.currentTimeMillis(),
         updatedAt: Long = System.currentTimeMillis()
     ): SerializableProduct {
@@ -31,6 +34,7 @@ object TestUtils {
             id = id,
             name = name,
             isBought = isBought,
+            position = position,
             createdAt = createdAt,
             updatedAt = updatedAt
         )
@@ -40,7 +44,8 @@ object TestUtils {
         return (1..count).map { index ->
             createTestProduct(
                 name = "Product $index",
-                isBought = index % 2 == 0 // Every other product is bought
+                isBought = index % 2 == 0, // Every other product is bought
+                position = index
             )
         }
     }
@@ -49,7 +54,8 @@ object TestUtils {
         return (1..count).map { index ->
             createTestSerializableProduct(
                 name = "Product $index",
-                isBought = index % 2 == 0 // Every other product is bought
+                isBought = index % 2 == 0, // Every other product is bought
+                position = index
             )
         }
     }

@@ -8,22 +8,28 @@ import android.os.VibratorManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import androidx.core.content.ContextCompat
+import com.szopper.data.repository.SettingsRepositoryImpl
+import com.szopper.domain.repository.SettingsRepository
 
 class HapticFeedbackManager(private val context: Context) {
-    
+
+    private val settingsRepository: SettingsRepository = SettingsRepositoryImpl(context)
+
     private val vibrator: Vibrator? by lazy {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            val vibratorManager =
+                context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
             vibratorManager.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
             context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
     }
-    
+
     fun performHapticFeedback(type: HapticFeedbackType) {
+        if (!settingsRepository.isHapticFeedbackEnabled()) {
+            return
+        }
         if (vibrator?.hasVibrator() == true) {
             when (type) {
                 HapticFeedbackType.CLICK -> performClick()

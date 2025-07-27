@@ -13,4 +13,5 @@ interface ProductRepository {
     suspend fun toggleProductBought(id: ObjectId)
     suspend fun resetAllProducts()
     suspend fun getProductCount(): Long
+    suspend fun reorderProducts(productPositions: List<Pair<ObjectId, Int>>)
 }

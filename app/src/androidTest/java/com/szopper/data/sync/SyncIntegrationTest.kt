@@ -33,9 +33,9 @@ class SyncIntegrationTest {
         // Given
         val deviceId = "test-device-123"
         val products = listOf(
-            SerializableProduct("1", "Milk", false, 1000L, 1100L),
-            SerializableProduct("2", "Bread", true, 1050L, 1150L),
-            SerializableProduct("3", "Eggs", false, 1200L, 1200L)
+            SerializableProduct("1", "Milk", false, 0, 1000L, 1100L),
+            SerializableProduct("2", "Bread", true, 1, 1050L, 1150L),
+            SerializableProduct("3", "Eggs", false, 2, 1200L, 1200L)
         )
 
         // When - Create and serialize message

@@ -223,6 +223,7 @@ class DataTransferManager @Inject constructor(
             id = ObjectId(serializable.id)
             name = serializable.name
             isBought = serializable.isBought
+            position = serializable.position
             createdAt = serializable.createdAt
             updatedAt = serializable.updatedAt
         }

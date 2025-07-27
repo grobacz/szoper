@@ -3,6 +3,7 @@ package com.szopper.presentation.viewmodel
 import com.szopper.domain.model.Product
 import com.szopper.domain.usecase.AddProductUseCase
 import com.szopper.domain.usecase.GetAllProductsUseCase
+import com.szopper.domain.usecase.ReorderProductsUseCase
 import com.szopper.domain.usecase.ResetAllProductsUseCase
 import com.szopper.domain.usecase.ToggleProductBoughtUseCase
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,6 @@ import org.mongodb.kbson.ObjectId
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ProductListViewModelTest {
@@ -31,6 +31,7 @@ class ProductListViewModelTest {
     private lateinit var addProductUseCase: AddProductUseCase
     private lateinit var toggleProductBoughtUseCase: ToggleProductBoughtUseCase
     private lateinit var resetAllProductsUseCase: ResetAllProductsUseCase
+    private lateinit var reorderProductsUseCase: ReorderProductsUseCase
     private lateinit var viewModel: ProductListViewModel
 
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -43,6 +44,7 @@ class ProductListViewModelTest {
         addProductUseCase = mock()
         toggleProductBoughtUseCase = mock()
         resetAllProductsUseCase = mock()
+        reorderProductsUseCase = mock()
         
         // Setup default empty flow
         whenever(getAllProductsUseCase()).thenReturn(flowOf(emptyList()))
@@ -51,7 +53,8 @@ class ProductListViewModelTest {
             getAllProductsUseCase,
             addProductUseCase,
             toggleProductBoughtUseCase,
-            resetAllProductsUseCase
+            resetAllProductsUseCase,
+            reorderProductsUseCase
         )
     }
 
@@ -83,7 +86,8 @@ class ProductListViewModelTest {
             getAllProductsUseCase,
             addProductUseCase,
             toggleProductBoughtUseCase,
-            resetAllProductsUseCase
+            resetAllProductsUseCase,
+            reorderProductsUseCase
         )
 
         // Then
@@ -139,6 +143,21 @@ class ProductListViewModelTest {
 
         // Then
         verify(resetAllProductsUseCase).invoke()
+    }
+
+    @Test
+    fun `reorderProducts should call use case with product positions`() = runTest {
+        // Given
+        val product1 = Product().apply { id = ObjectId() }
+        val product2 = Product().apply { id = ObjectId() }
+        val products = listOf(product1, product2)
+        val expectedPositions = listOf(product1.id to 0, product2.id to 1)
+
+        // When
+        viewModel.reorderProducts(products)
+
+        // Then
+        verify(reorderProductsUseCase).invoke(expectedPositions)
     }
 
     @Test

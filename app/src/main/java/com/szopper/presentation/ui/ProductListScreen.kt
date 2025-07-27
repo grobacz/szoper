@@ -4,7 +4,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -37,17 +35,23 @@ fun ProductListScreen(
     val products by viewModel.products.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
-    
+
     val hapticFeedback = rememberHapticFeedback()
-    
+
     var showAddDialog by remember { mutableStateOf(false) }
     var productName by remember { mutableStateOf("") }
+
+    val dragDropState = rememberDragDropState(products) { from, to ->
+        viewModel.reorderProducts(products.toMutableList().apply {
+            add(to, removeAt(from))
+        })
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         "Shopping List",
                         modifier = Modifier.semantics {
@@ -72,9 +76,9 @@ fun ProductListScreen(
                         )
                     }
                     IconButton(
-                        onClick = { 
+                        onClick = {
                             hapticFeedback.performHapticFeedback(HapticFeedbackType.LONG_PRESS)
-                            viewModel.resetAllProducts() 
+                            viewModel.resetAllProducts()
                         },
                         modifier = Modifier.semantics {
                             contentDescription = "Reset all products to unbought state"
@@ -91,9 +95,9 @@ fun ProductListScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { 
+                onClick = {
                     hapticFeedback.performHapticFeedback(HapticFeedbackType.CLICK)
-                    showAddDialog = true 
+                    showAddDialog = true
                 },
                 modifier = Modifier.semantics {
                     contentDescription = "Add new product to shopping list"
@@ -113,65 +117,79 @@ fun ProductListScreen(
                 .padding(paddingValues)
         ) {
             if (isLoading) {
-            Box(
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription = "Loading products from database"
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            error?.let { errorMessage ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
+
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .weight(1f)
                     .semantics {
-                        contentDescription = "Loading products from database"
+                        contentDescription = if (products.isEmpty()) {
+                            "Shopping list is empty. Add products using the plus button."
+                        } else {
+                            "Shopping list with ${products.size} items. ${products.count { it.isBought }} items are marked as bought."
+                        }
                     },
-                contentAlignment = Alignment.Center
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CircularProgressIndicator()
-            }
-        }
-
-        error?.let { errorMessage ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        }
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .semantics {
-                    contentDescription = if (products.isEmpty()) {
-                        "Shopping list is empty. Add products using the plus button."
-                    } else {
-                        "Shopping list with ${products.size} items. ${products.count { it.isBought }} items are marked as bought."
+                itemsIndexed(
+                    items = products,
+                    key = { _, product -> product.id.toHexString() }
+                ) { index, product ->
+                    DraggableItem(state = dragDropState, index = index) { isDragging ->
+                        val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp)
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    translationY = if (index == dragDropState.draggingItemIndex.value) {
+                                        dragDropState.draggingItemOffset.value
+                                    } else 0f
+                                },
+                            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+                        ) {
+                            AnimatedProductItem(
+                                product = product,
+                                index = index,
+                                onToggle = { viewModel.toggleProductBought(product.id) }
+                            )
+                        }
                     }
-                },
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            itemsIndexed(
-                items = products,
-                key = { _, product -> product.id.toHexString() }
-            ) { index, product ->
-                AnimatedProductItem(
-                    product = product,
-                    index = index,
-                    onToggle = { viewModel.toggleProductBought(product.id) }
-                )
+                }
             }
-        }
         }
     }
 
     if (showAddDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 showAddDialog = false
                 productName = ""
             },
@@ -199,7 +217,7 @@ fun ProductListScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { 
+                    onClick = {
                         showAddDialog = false
                         productName = ""
                     }
@@ -220,7 +238,7 @@ fun AnimatedProductItem(
 ) {
     var isPressed by remember { mutableStateOf(false) }
     val hapticFeedback = rememberHapticFeedback()
-    
+
     // Staggered animation for list items
     val animationDelay = index * 50
     val slideInAnimation = remember {
@@ -230,7 +248,7 @@ fun AnimatedProductItem(
             easing = FastOutSlowInEasing
         )
     }
-    
+
     // Scale animation for press feedback
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.96f else 1f,
@@ -240,18 +258,18 @@ fun AnimatedProductItem(
         ),
         label = "item_scale"
     )
-    
+
     // Fade animation for bought state
     val alpha by animateFloatAsState(
         targetValue = if (product.isBought) 0.7f else 1f,
         animationSpec = tween(durationMillis = 200),
         label = "item_alpha"
     )
-    
+
     LaunchedEffect(Unit) {
         // Initial slide-in animation would be handled by AnimatedVisibility
     }
-    
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -265,7 +283,7 @@ fun AnimatedProductItem(
         onClick = {
             isPressed = true
             hapticFeedback.performHapticFeedback(
-                if (product.isBought) HapticFeedbackType.LIGHT_IMPACT 
+                if (product.isBought) HapticFeedbackType.LIGHT_IMPACT
                 else HapticFeedbackType.SUCCESS
             )
             onToggle()
@@ -289,7 +307,7 @@ fun AnimatedProductItem(
             )
         }
     }
-    
+
     // Reset press state
     LaunchedEffect(isPressed) {
         if (isPressed) {
@@ -312,7 +330,7 @@ fun AnimatedCheckbox(
         ),
         label = "checkbox_scale"
     )
-    
+
     Checkbox(
         checked = checked,
         onCheckedChange = onCheckedChange,

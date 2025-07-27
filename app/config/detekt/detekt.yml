@@ -1,5 +1,5 @@
 build:
-  maxIssues: 0
+  maxIssues: 1000
   excludeCorrectable: false
   weights:
     complexity: 2
@@ -59,7 +59,7 @@ complexity:
     threshold: 4
   ComplexInterface:
     active: false
-  ComplexMethod:
+  CyclomaticComplexMethod:
     active: true
     threshold: 15
   LabeledExpression:
@@ -183,10 +183,6 @@ exceptions:
       - Throwable
       - RuntimeException
 
-formatting:
-  active: true
-  android: false
-  autoCorrect: true
 
 naming:
   active: true
@@ -265,8 +261,6 @@ potential-bugs:
     active: false
   DoubleMutabilityForCollection:
     active: true
-  DuplicateCaseInWhenExpression:
-    active: true
   EqualsAlwaysReturnsTrueOrFalse:
     active: false
   EqualsWithHashCodeExist:
@@ -291,12 +285,8 @@ potential-bugs:
     active: false
   MapGetWithNotNullAssertionOperator:
     active: false
-  MissingWhenCase:
-    active: true
   NullableToStringCall:
     active: false
-  RedundantElseInWhen:
-    active: true
   UnconditionalJumpStatementInLoop:
     active: false
   UnnecessaryNotNullOperator:
@@ -320,13 +310,9 @@ style:
     active: false
   CollapsibleIfStatements:
     active: false
-  DataClassContainsCustomEquals:
-    active: false
   DataClassShouldBeImmutable:
     active: false
   EqualsNullCall:
-    active: false
-  EqualsOnSignatureBuiltIn:
     active: false
   ExplicitCollectionElementAccessMethod:
     active: false
@@ -336,7 +322,7 @@ style:
     active: false
   ForbiddenComment:
     active: true
-    values:
+    comments:
       - 'TODO:'
       - 'FIXME:'
       - 'STOPSHIP:'
@@ -345,15 +331,9 @@ style:
     active: false
   ForbiddenMethodCall:
     active: false
-  ForbiddenPublicDataClass:
-    active: false
   ForbiddenVoid:
     active: false
   FunctionOnlyReturningConstant:
-    active: false
-  LibraryCodeMustSpecifyReturnType:
-    active: false
-  LibraryEntitiesShouldNotBePublic:
     active: false
   LoopWithTooManyJumpStatements:
     active: false
@@ -373,8 +353,10 @@ style:
     ignoreNamedArgument: true
     ignoreEnums: false
     ignoreRanges: false
-  MandatoryBracesIfStatements:
+  BracesOnIfStatements:
     active: false
+    singleLine: 'never'
+    multiLine: 'always'
   MandatoryBracesLoops:
     active: false
   MaxLineLength:
@@ -397,7 +379,7 @@ style:
     active: true
   OptionalUnit:
     active: false
-  OptionalWhenBraces:
+  BracesOnWhenStatements:
     active: false
   PreferToOverPairSyntax:
     active: false

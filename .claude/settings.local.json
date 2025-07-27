@@ -16,7 +16,8 @@
       "Bash(pkill:*)",
       "Bash(ls:*)",
       "Bash(gradle:*)",
-      "Bash(echo $ANDROID_HOME)"
+      "Bash(echo $ANDROID_HOME)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

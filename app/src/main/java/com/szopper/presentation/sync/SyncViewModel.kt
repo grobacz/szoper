@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.szopper.domain.sync.ConnectionStatus
 import com.szopper.domain.sync.DeviceInfo
 import com.szopper.domain.sync.SyncRepository
-import com.szopper.domain.usecase.GetAllProductsUseCase
+import com.szopper.domain.usecase.GetHapticFeedbackSettingUseCase
+import com.szopper.domain.usecase.SetHapticFeedbackSettingUseCase
 import com.szopper.domain.usecase.SyncProductsUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +19,9 @@ import javax.inject.Inject
 @HiltViewModel
 class SyncViewModel @Inject constructor(
     private val syncRepository: SyncRepository,
-    private val getAllProductsUseCase: GetAllProductsUseCase,
-    private val syncProductsUseCase: SyncProductsUseCase
+    private val syncProductsUseCase: SyncProductsUseCase,
+    private val getHapticFeedbackSettingUseCase: GetHapticFeedbackSettingUseCase,
+    private val setHapticFeedbackSettingUseCase: SetHapticFeedbackSettingUseCase
 ) : ViewModel() {
     
     private val _discoveredDevices = MutableStateFlow<List<DeviceInfo>>(emptyList())
@@ -33,6 +35,9 @@ class SyncViewModel @Inject constructor(
     
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+    
+    private val _hapticFeedbackEnabled = MutableStateFlow(getHapticFeedbackSettingUseCase())
+    val hapticFeedbackEnabled: StateFlow<Boolean> = _hapticFeedbackEnabled.asStateFlow()
     
     init {
         observeConnectionStatus()
@@ -109,5 +114,10 @@ class SyncViewModel @Inject constructor(
     
     fun clearError() {
         _error.value = null
+    }
+    
+    fun setHapticFeedbackEnabled(enabled: Boolean) {
+        setHapticFeedbackSettingUseCase(enabled)
+        _hapticFeedbackEnabled.value = enabled
     }
 }

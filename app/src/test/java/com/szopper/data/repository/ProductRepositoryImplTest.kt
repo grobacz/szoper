@@ -55,7 +55,6 @@ class ProductRepositoryImplTest {
         // Given
         val productId = ObjectId()
         val mockProduct = Product()
-        val mockQuery = mock<RealmResults<Product>>()
         val mockWriteTransaction = mock<Realm.WriteTransaction>()
         
         whenever(realm.write(any<suspend Realm.WriteTransaction.() -> Unit>())).thenAnswer { invocation ->

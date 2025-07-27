@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.szopper.domain.model.Product
 import com.szopper.domain.usecase.AddProductUseCase
 import com.szopper.domain.usecase.GetAllProductsUseCase
+import com.szopper.domain.usecase.ReorderProductsUseCase
 import com.szopper.domain.usecase.ResetAllProductsUseCase
 import com.szopper.domain.usecase.ToggleProductBoughtUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -21,7 +22,8 @@ class ProductListViewModel @Inject constructor(
     private val getAllProductsUseCase: GetAllProductsUseCase,
     private val addProductUseCase: AddProductUseCase,
     private val toggleProductBoughtUseCase: ToggleProductBoughtUseCase,
-    private val resetAllProductsUseCase: ResetAllProductsUseCase
+    private val resetAllProductsUseCase: ResetAllProductsUseCase,
+    private val reorderProductsUseCase: ReorderProductsUseCase
 ) : ViewModel() {
 
     private val _products = MutableStateFlow<List<Product>>(emptyList())
@@ -77,6 +79,19 @@ class ProductListViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 resetAllProductsUseCase()
+            } catch (e: Exception) {
+                _error.value = e.message
+            }
+        }
+    }
+
+    fun reorderProducts(products: List<Product>) {
+        viewModelScope.launch {
+            try {
+                val productPositions = products.mapIndexed { index, product ->
+                    product.id to index
+                }
+                reorderProductsUseCase(productPositions)
             } catch (e: Exception) {
                 _error.value = e.message
             }

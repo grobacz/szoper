@@ -9,6 +9,7 @@ class Product : RealmObject {
     var id: ObjectId = ObjectId()
     var name: String = ""
     var isBought: Boolean = false
+    var position: Int = 0
     var createdAt: Long = System.currentTimeMillis()
     var updatedAt: Long = System.currentTimeMillis()
 }

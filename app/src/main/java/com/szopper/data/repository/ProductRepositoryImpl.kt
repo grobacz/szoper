@@ -16,7 +16,7 @@ class ProductRepositoryImpl @Inject constructor(
     override fun getAllProducts(): Flow<List<Product>> {
         return realmDatabase.realm
             .query<Product>()
-            .sort("createdAt", io.realm.kotlin.query.Sort.DESCENDING)
+            .sort("position")
             .asFlow()
             .map { it.list.toList() }
     }
@@ -30,6 +30,8 @@ class ProductRepositoryImpl @Inject constructor(
         }
         
         realmDatabase.realm.write {
+            val maxPosition = query<Product>().max("position", Int::class).find()
+            product.position = (maxPosition ?: -1) + 1
             copyToRealm(product)
         }
         
@@ -65,7 +67,7 @@ class ProductRepositoryImpl @Inject constructor(
     override fun getProductsPaginated(limit: Int, offset: Int): Flow<List<Product>> {
         return realmDatabase.realm
             .query<Product>()
-            .sort("createdAt", io.realm.kotlin.query.Sort.DESCENDING)
+            .sort("position")
             .limit(limit)
             .asFlow()
             .map { results ->
@@ -83,6 +85,18 @@ class ProductRepositoryImpl @Inject constructor(
             products.forEach {
                 it.isBought = false
                 it.updatedAt = System.currentTimeMillis()
+            }
+        }
+    }
+
+    override suspend fun reorderProducts(productPositions: List<Pair<ObjectId, Int>>) {
+        realmDatabase.realm.write {
+            productPositions.forEach { (id, position) ->
+                val product = query<Product>("id == $0", id).first().find()
+                product?.let {
+                    it.position = position
+                    it.updatedAt = System.currentTimeMillis()
+                }
             }
         }
     }

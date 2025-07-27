@@ -39,6 +39,7 @@ data class SerializableProduct(
     val id: String,
     val name: String,
     val isBought: Boolean,
+    val position: Int,
     val createdAt: Long,
     val updatedAt: Long
 )
@@ -48,6 +49,7 @@ fun Product.toSerializable(): SerializableProduct {
         id = this.id.toHexString(),
         name = this.name,
         isBought = this.isBought,
+        position = this.position,
         createdAt = this.createdAt,
         updatedAt = this.updatedAt
     )
