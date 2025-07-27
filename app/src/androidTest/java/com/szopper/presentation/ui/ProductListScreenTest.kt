@@ -1,6 +1,7 @@
 package com.szopper.presentation.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -146,7 +147,7 @@ class ProductListScreenTest {
         composeTestRule.onNodeWithText("Cancel").performClick()
 
         // Then - Dialog should be dismissed
-        composeTestRule.onNodeWithText("Add Product").assertDoesNotExist()
+        composeTestRule.onNodeWithText("Add Product").assertIsNotDisplayed()
     }
 
     @Test

@@ -17,7 +17,9 @@
       "Bash(ls:*)",
       "Bash(gradle:*)",
       "Bash(echo $ANDROID_HOME)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(java:*)",
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew compileDebugUnitTestKotlin --console=plain)"
     ],
     "deny": []
   }

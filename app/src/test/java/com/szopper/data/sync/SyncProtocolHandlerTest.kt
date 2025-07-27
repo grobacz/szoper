@@ -41,8 +41,8 @@ class SyncProtocolHandlerTest {
         // Given
         val deviceId = "test-device"
         val products = listOf(
-            SerializableProduct("1", "Product 1", false, 100L, 200L),
-            SerializableProduct("2", "Product 2", true, 150L, 250L)
+            SerializableProduct("1", "Product 1", false, 0, 100L, 200L),
+            SerializableProduct("2", "Product 2", true, 1, 150L, 250L)
         )
 
         // When
@@ -60,7 +60,7 @@ class SyncProtocolHandlerTest {
         // Given
         val deviceId = "test-device"
         val products = listOf(
-            SerializableProduct("1", "Product 1", false, 100L, 200L)
+            SerializableProduct("1", "Product 1", false, 0, 100L, 200L)
         )
         val originalMessage = syncProtocolHandler.createProductListMessage(deviceId, products)
 
@@ -92,12 +92,12 @@ class SyncProtocolHandlerTest {
     fun `resolveConflicts with LAST_UPDATED_WINS should prefer newer products`() {
         // Given
         val localProducts = listOf(
-            SerializableProduct("1", "Product 1", false, 100L, 200L),
-            SerializableProduct("2", "Product 2", true, 150L, 250L)
+            SerializableProduct("1", "Product 1", false, 0, 100L, 200L),
+            SerializableProduct("2", "Product 2", true, 1, 150L, 250L)
         )
         val remoteProducts = listOf(
-            SerializableProduct("1", "Product 1 Updated", true, 100L, 300L), // Newer
-            SerializableProduct("3", "Product 3", false, 180L, 280L) // New product
+            SerializableProduct("1", "Product 1 Updated", true, 0, 100L, 300L), // Newer
+            SerializableProduct("3", "Product 3", false, 2, 180L, 280L) // New product
         )
 
         // When
@@ -132,10 +132,10 @@ class SyncProtocolHandlerTest {
     fun `resolveConflicts with MERGE_ALL should combine bought status`() {
         // Given
         val localProducts = listOf(
-            SerializableProduct("1", "Product 1", true, 100L, 200L)
+            SerializableProduct("1", "Product 1", true, 0, 100L, 200L)
         )
         val remoteProducts = listOf(
-            SerializableProduct("1", "Product 1 Updated", false, 100L, 300L) // Newer but not bought
+            SerializableProduct("1", "Product 1 Updated", false, 0, 100L, 300L) // Newer but not bought
         )
 
         // When

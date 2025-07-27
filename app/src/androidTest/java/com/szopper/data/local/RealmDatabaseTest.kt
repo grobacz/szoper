@@ -23,8 +23,6 @@ class RealmDatabaseTest {
 
     @Before
     fun setup() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        
         testConfig = RealmConfiguration.Builder(
             schema = setOf(Product::class)
         )

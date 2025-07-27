@@ -1,19 +1,26 @@
 package com.szopper.domain.usecase
 
 import com.szopper.domain.repository.SettingsRepository
-import io.mockk.mockk
-import io.mockk.verify
+import org.junit.Before
 import org.junit.Test
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 
 class GetHapticFeedbackSettingUseCaseTest {
 
+    private lateinit var repository: SettingsRepository
+    private lateinit var useCase: GetHapticFeedbackSettingUseCase
+
+    @Before
+    fun setup() {
+        repository = mock()
+        useCase = GetHapticFeedbackSettingUseCase(repository)
+    }
+
     @Test
     fun `invoke should call repository`() {
-        val repository = mockk<SettingsRepository>(relaxed = true)
-        val useCase = GetHapticFeedbackSettingUseCase(repository)
-
         useCase.invoke()
 
-        verify { repository.isHapticFeedbackEnabled() }
+        verify(repository).isHapticFeedbackEnabled()
     }
 }

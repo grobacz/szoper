@@ -59,15 +59,15 @@ class SyncIntegrationTest {
     fun testConflictResolutionWithRealData() = runTest {
         // Given - Simulate two devices with overlapping shopping lists
         val device1Products = listOf(
-            SerializableProduct("1", "Milk", true, 1000L, 1500L),   // Bought on device 1, updated later
-            SerializableProduct("2", "Bread", false, 1100L, 1200L), // Not bought on device 1
-            SerializableProduct("3", "Eggs", false, 1200L, 1200L)   // Only on device 1
+            SerializableProduct("1", "Milk", true, 0, 1000L, 1500L),   // Bought on device 1, updated later
+            SerializableProduct("2", "Bread", false, 1, 1100L, 1200L), // Not bought on device 1
+            SerializableProduct("3", "Eggs", false, 2, 1200L, 1200L)   // Only on device 1
         )
         
         val device2Products = listOf(
-            SerializableProduct("1", "Milk", false, 1000L, 1300L),  // Not bought on device 2, updated earlier
-            SerializableProduct("2", "Bread", true, 1100L, 1400L),  // Bought on device 2, updated later
-            SerializableProduct("4", "Butter", false, 1250L, 1250L) // Only on device 2
+            SerializableProduct("1", "Milk", false, 0, 1000L, 1300L),  // Not bought on device 2, updated earlier
+            SerializableProduct("2", "Bread", true, 1, 1100L, 1400L),  // Bought on device 2, updated later
+            SerializableProduct("4", "Butter", false, 3, 1250L, 1250L) // Only on device 2
         )
 
         // When - Resolve conflicts using LAST_UPDATED_WINS
@@ -109,11 +109,11 @@ class SyncIntegrationTest {
     fun testConflictResolutionWithMergeStrategy() = runTest {
         // Given - Same product with different bought status
         val device1Products = listOf(
-            SerializableProduct("1", "Milk", true, 1000L, 1200L)  // Bought on device 1
+            SerializableProduct("1", "Milk", true, 0, 1000L, 1200L)  // Bought on device 1
         )
         
         val device2Products = listOf(
-            SerializableProduct("1", "Organic Milk", false, 1000L, 1400L)  // Not bought on device 2, but renamed and newer
+            SerializableProduct("1", "Organic Milk", false, 0, 1000L, 1400L)  // Not bought on device 2, but renamed and newer
         )
 
         // When - Resolve conflicts using MERGE_ALL
@@ -158,7 +158,7 @@ class SyncIntegrationTest {
         val validSyncRequest = syncProtocolHandler.createSyncRequest("device1", 1000L)
         val validProductList = syncProtocolHandler.createProductListMessage(
             "device2", 
-            listOf(SerializableProduct("1", "Test", false, 100L, 200L))
+            listOf(SerializableProduct("1", "Test", false, 0, 100L, 200L))
         )
         val validHeartbeat = syncProtocolHandler.createHeartbeat("device3", "Test Device")
 
