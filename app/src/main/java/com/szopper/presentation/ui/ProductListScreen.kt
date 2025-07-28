@@ -37,9 +37,17 @@ fun ProductListScreen(
     val error by viewModel.error.collectAsState()
 
     val hapticFeedback = rememberHapticFeedback()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var showAddDialog by remember { mutableStateOf(false) }
     var productName by remember { mutableStateOf("") }
+    
+    // Delete confirmation dialog state
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var productToDelete by remember { mutableStateOf<Product?>(null) }
+    
+    // Track deletions for snackbar
+    var lastDeletedProduct by remember { mutableStateOf<Product?>(null) }
 
     val dragDropState = rememberDragDropState(products) { from, to ->
         hapticFeedback.performHapticFeedback(HapticFeedbackType.LIGHT_IMPACT)
@@ -93,6 +101,9 @@ fun ProductListScreen(
                     }
                 }
             )
+        },
+        snackbarHost = {
+            UndoSnackbarHost(snackbarHostState = snackbarHostState)
         },
         floatingActionButton = {
             FloatingActionButton(
@@ -164,43 +175,52 @@ fun ProductListScreen(
                     items = products,
                     key = { _, product -> product.id.toHexString() }
                 ) { index, product ->
-                    DraggableItem(
-                        state = dragDropState, 
-                        index = index,
-                        itemHeight = 88f, // Approximate item height including padding
-                        onDragStart = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LONG_PRESS)
+                    SwipeToDeleteItem(
+                        onDelete = {
+                            productToDelete = product
+                            showDeleteDialog = true
                         },
-                        onDragEnd = {
-                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LIGHT_IMPACT)
-                        }
-                    ) { isDragging ->
-                        val elevation by animateDpAsState(
-                            targetValue = if (isDragging) 8.dp else 0.dp,
-                            label = "drag_elevation"
-                        )
-                        val scale by animateFloatAsState(
-                            targetValue = if (isDragging) 1.02f else 1f,
-                            label = "drag_scale"
-                        )
-                        
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .graphicsLayer {
-                                    translationY = if (index == dragDropState.draggingItemIndex.value) {
-                                        dragDropState.draggingItemOffset.value
-                                    } else 0f
-                                    scaleX = scale
-                                    scaleY = scale
-                                },
-                            elevation = CardDefaults.cardElevation(defaultElevation = elevation)
-                        ) {
-                            AnimatedProductItem(
-                                product = product,
-                                index = index,
-                                onToggle = { viewModel.toggleProductBought(product.id) }
+                        itemName = product.name,
+                        enabled = true
+                    ) {
+                        DraggableItem(
+                            state = dragDropState, 
+                            index = index,
+                            itemHeight = 88f, // Approximate item height including padding
+                            onDragStart = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LONG_PRESS)
+                            },
+                            onDragEnd = {
+                                hapticFeedback.performHapticFeedback(HapticFeedbackType.LIGHT_IMPACT)
+                            }
+                        ) { isDragging ->
+                            val elevation by animateDpAsState(
+                                targetValue = if (isDragging) 8.dp else 0.dp,
+                                label = "drag_elevation"
                             )
+                            val scale by animateFloatAsState(
+                                targetValue = if (isDragging) 1.02f else 1f,
+                                label = "drag_scale"
+                            )
+                            
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer {
+                                        translationY = if (index == dragDropState.draggingItemIndex.value) {
+                                            dragDropState.draggingItemOffset.value
+                                        } else 0f
+                                        scaleX = scale
+                                        scaleY = scale
+                                    },
+                                elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+                            ) {
+                                AnimatedProductItem(
+                                    product = product,
+                                    index = index,
+                                    onToggle = { viewModel.toggleProductBought(product.id) }
+                                )
+                            }
                         }
                     }
                 }
@@ -247,6 +267,33 @@ fun ProductListScreen(
                 }
             }
         )
+    }
+
+    // Delete confirmation dialog
+    DeleteConfirmationDialog(
+        isVisible = showDeleteDialog,
+        itemName = productToDelete?.name ?: "",
+        onConfirmDelete = {
+            productToDelete?.let { product ->
+                viewModel.deleteProduct(product)
+                lastDeletedProduct = product
+            }
+        },
+        onDismiss = {
+            showDeleteDialog = false
+            productToDelete = null
+        }
+    )
+    
+    // Show undo snackbar when a product is deleted
+    LaunchedEffect(lastDeletedProduct) {
+        lastDeletedProduct?.let { product ->
+            val result = snackbarHostState.showUndoSnackbar(
+                itemName = product.name,
+                onUndo = { viewModel.undoDelete(product.id) }
+            )
+            lastDeletedProduct = null
+        }
     }
 }
 

@@ -2,6 +2,7 @@ package com.szopper.presentation.viewmodel
 
 import com.szopper.domain.model.Product
 import com.szopper.domain.usecase.AddProductUseCase
+import com.szopper.domain.usecase.DeleteProductUseCase
 import com.szopper.domain.usecase.GetAllProductsUseCase
 import com.szopper.domain.usecase.ReorderProductsUseCase
 import com.szopper.domain.usecase.ResetAllProductsUseCase
@@ -32,6 +33,7 @@ class ProductListViewModelTest {
     private lateinit var toggleProductBoughtUseCase: ToggleProductBoughtUseCase
     private lateinit var resetAllProductsUseCase: ResetAllProductsUseCase
     private lateinit var reorderProductsUseCase: ReorderProductsUseCase
+    private lateinit var deleteProductUseCase: DeleteProductUseCase
     private lateinit var viewModel: ProductListViewModel
 
     private val testDispatcher = UnconfinedTestDispatcher()
@@ -45,6 +47,7 @@ class ProductListViewModelTest {
         toggleProductBoughtUseCase = mock()
         resetAllProductsUseCase = mock()
         reorderProductsUseCase = mock()
+        deleteProductUseCase = mock()
         
         // Setup default empty flow
         whenever(getAllProductsUseCase()).thenReturn(flowOf(emptyList()))
@@ -54,7 +57,8 @@ class ProductListViewModelTest {
             addProductUseCase,
             toggleProductBoughtUseCase,
             resetAllProductsUseCase,
-            reorderProductsUseCase
+            reorderProductsUseCase,
+            deleteProductUseCase
         )
     }
 
@@ -87,7 +91,8 @@ class ProductListViewModelTest {
             addProductUseCase,
             toggleProductBoughtUseCase,
             resetAllProductsUseCase,
-            reorderProductsUseCase
+            reorderProductsUseCase,
+            deleteProductUseCase
         )
 
         // Then
@@ -170,5 +175,42 @@ class ProductListViewModelTest {
 
         // Then
         assertNull(viewModel.error.value)
+    }
+
+    @Test
+    fun `deleteProduct should call delete use case and store for undo`() = runTest {
+        // Given
+        val product = Product().apply {
+            id = ObjectId()
+            name = "Test Product"
+            isBought = false
+            position = 0
+        }
+
+        // When
+        viewModel.deleteProduct(product)
+
+        // Then
+        verify(deleteProductUseCase).invoke(product.id)
+    }
+
+    @Test
+    fun `undoDelete should call add use case for recently deleted product`() = runTest {
+        // Given
+        val product = Product().apply {
+            id = ObjectId()
+            name = "Test Product"
+            isBought = false
+            position = 0
+        }
+
+        // Delete the product first
+        viewModel.deleteProduct(product)
+
+        // When
+        viewModel.undoDelete(product.id)
+
+        // Then
+        verify(addProductUseCase).invoke(product.name)
     }
 }

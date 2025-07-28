@@ -50,7 +50,22 @@ class ProductRepositoryImpl @Inject constructor(
     override suspend fun deleteProduct(id: ObjectId) {
         realmDatabase.realm.write {
             val product = query<Product>("id == $0", id).first().find()
-            product?.let { delete(it) }
+            product?.let { productToDelete ->
+                val deletedPosition = productToDelete.position
+                
+                // Delete the product
+                delete(productToDelete)
+                
+                // Reindex positions for remaining products
+                val remainingProducts = query<Product>("position > $0", deletedPosition)
+                    .sort("position")
+                    .find()
+                
+                remainingProducts.forEach { remainingProduct ->
+                    remainingProduct.position = remainingProduct.position - 1
+                    remainingProduct.updatedAt = System.currentTimeMillis()
+                }
+            }
         }
     }
 

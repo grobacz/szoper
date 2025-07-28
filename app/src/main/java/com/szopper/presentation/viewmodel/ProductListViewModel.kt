@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.szopper.domain.model.Product
 import com.szopper.domain.usecase.AddProductUseCase
+import com.szopper.domain.usecase.DeleteProductUseCase
 import com.szopper.domain.usecase.GetAllProductsUseCase
 import com.szopper.domain.usecase.ReorderProductsUseCase
 import com.szopper.domain.usecase.ResetAllProductsUseCase
@@ -23,7 +24,8 @@ class ProductListViewModel @Inject constructor(
     private val addProductUseCase: AddProductUseCase,
     private val toggleProductBoughtUseCase: ToggleProductBoughtUseCase,
     private val resetAllProductsUseCase: ResetAllProductsUseCase,
-    private val reorderProductsUseCase: ReorderProductsUseCase
+    private val reorderProductsUseCase: ReorderProductsUseCase,
+    private val deleteProductUseCase: DeleteProductUseCase
 ) : ViewModel() {
 
     private val _products = MutableStateFlow<List<Product>>(emptyList())
@@ -34,6 +36,10 @@ class ProductListViewModel @Inject constructor(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    // Undo functionality - store recently deleted items
+    private val _recentlyDeleted = MutableStateFlow<Map<ObjectId, Product>>(emptyMap())
+    private val undoTimeoutMs = 5000L // 5 seconds
 
     init {
         loadProducts()
@@ -100,5 +106,68 @@ class ProductListViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    /**
+     * Deletes a product and stores it temporarily for undo functionality
+     */
+    fun deleteProduct(product: Product) {
+        viewModelScope.launch {
+            try {
+                // Store product for undo functionality
+                val currentDeleted = _recentlyDeleted.value.toMutableMap()
+                currentDeleted[product.id] = product
+                _recentlyDeleted.value = currentDeleted
+                
+                // Delete from database
+                deleteProductUseCase(product.id)
+                
+                // Schedule removal from undo cache
+                scheduleUndoCacheCleanup(product.id)
+            } catch (e: Exception) {
+                // Remove from undo cache if deletion failed
+                val currentDeleted = _recentlyDeleted.value.toMutableMap()
+                currentDeleted.remove(product.id)
+                _recentlyDeleted.value = currentDeleted
+                
+                _error.value = e.message
+            }
+        }
+    }
+
+    /**
+     * Restores a recently deleted product
+     */
+    fun undoDelete(productId: ObjectId) {
+        viewModelScope.launch {
+            try {
+                val deletedProduct = _recentlyDeleted.value[productId]
+                if (deletedProduct != null) {
+                    // Re-add the product
+                    addProductUseCase(deletedProduct.name)
+                    
+                    // Remove from undo cache
+                    val currentDeleted = _recentlyDeleted.value.toMutableMap()
+                    currentDeleted.remove(productId)
+                    _recentlyDeleted.value = currentDeleted
+                }
+            } catch (e: Exception) {
+                _error.value = e.message
+            }
+        }
+    }
+
+    /**
+     * Schedules cleanup of undo cache after timeout
+     */
+    private fun scheduleUndoCacheCleanup(productId: ObjectId) {
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(undoTimeoutMs)
+            
+            // Remove from undo cache after timeout
+            val currentDeleted = _recentlyDeleted.value.toMutableMap()
+            currentDeleted.remove(productId)
+            _recentlyDeleted.value = currentDeleted
+        }
     }
 }
