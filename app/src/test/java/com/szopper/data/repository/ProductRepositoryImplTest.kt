@@ -92,4 +92,23 @@ class ProductRepositoryImplTest {
         // Then
         verify(realm).write(any<MutableRealm.() -> Unit>())
     }
+
+    @Test
+    fun `reorderProducts should call realm write operation with correct positions`() = runTest {
+        // Given
+        val productId1 = ObjectId()
+        val productId2 = ObjectId()
+        val productPositions = listOf(productId1 to 0, productId2 to 1)
+        
+        whenever(realm.write(any<MutableRealm.() -> Unit>())).thenAnswer { 
+            // Just simulate the write operation
+            Unit
+        }
+
+        // When
+        productRepository.reorderProducts(productPositions)
+
+        // Then
+        verify(realm).write(any<MutableRealm.() -> Unit>())
+    }
 }

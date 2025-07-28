@@ -19,7 +19,14 @@
       "Bash(echo $ANDROID_HOME)",
       "Bash(rm:*)",
       "Bash(java:*)",
-      "Bash(JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew compileDebugUnitTestKotlin --console=plain)"
+      "Bash(JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64 ./gradlew compileDebugUnitTestKotlin --console=plain)",
+      "mcp__mobile__mobile_list_available_devices",
+      "mcp__mobile__mobile_use_device",
+      "mcp__mobile__mobile_list_apps",
+      "mcp__mobile__mobile_take_screenshot",
+      "mcp__mobile__mobile_press_button",
+      "Bash(chmod:*)",
+      "Bash(./quick_install.sh:*)"
     ],
     "deny": []
   }

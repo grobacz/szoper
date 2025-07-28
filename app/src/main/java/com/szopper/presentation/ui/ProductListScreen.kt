@@ -42,6 +42,7 @@ fun ProductListScreen(
     var productName by remember { mutableStateOf("") }
 
     val dragDropState = rememberDragDropState(products) { from, to ->
+        hapticFeedback.performHapticFeedback(HapticFeedbackType.LIGHT_IMPACT)
         viewModel.reorderProducts(products.toMutableList().apply {
             add(to, removeAt(from))
         })
@@ -163,8 +164,26 @@ fun ProductListScreen(
                     items = products,
                     key = { _, product -> product.id.toHexString() }
                 ) { index, product ->
-                    DraggableItem(state = dragDropState, index = index) { isDragging ->
-                        val elevation by animateDpAsState(if (isDragging) 4.dp else 0.dp)
+                    DraggableItem(
+                        state = dragDropState, 
+                        index = index,
+                        itemHeight = 88f, // Approximate item height including padding
+                        onDragStart = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LONG_PRESS)
+                        },
+                        onDragEnd = {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LIGHT_IMPACT)
+                        }
+                    ) { isDragging ->
+                        val elevation by animateDpAsState(
+                            targetValue = if (isDragging) 8.dp else 0.dp,
+                            label = "drag_elevation"
+                        )
+                        val scale by animateFloatAsState(
+                            targetValue = if (isDragging) 1.02f else 1f,
+                            label = "drag_scale"
+                        )
+                        
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -172,6 +191,8 @@ fun ProductListScreen(
                                     translationY = if (index == dragDropState.draggingItemIndex.value) {
                                         dragDropState.draggingItemOffset.value
                                     } else 0f
+                                    scaleX = scale
+                                    scaleY = scale
                                 },
                             elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                         ) {
@@ -239,15 +260,8 @@ fun AnimatedProductItem(
     var isPressed by remember { mutableStateOf(false) }
     val hapticFeedback = rememberHapticFeedback()
 
-    // Staggered animation for list items
-    val animationDelay = index * 50
-    val slideInAnimation = remember {
-        tween<Float>(
-            durationMillis = 300,
-            delayMillis = animationDelay,
-            easing = FastOutSlowInEasing
-        )
-    }
+    // Staggered animation for list items could be implemented here if needed
+    // val animationDelay = index * 50
 
     // Scale animation for press feedback
     val scale by animateFloatAsState(
@@ -266,9 +280,6 @@ fun AnimatedProductItem(
         label = "item_alpha"
     )
 
-    LaunchedEffect(Unit) {
-        // Initial slide-in animation would be handled by AnimatedVisibility
-    }
 
     Card(
         modifier = Modifier
@@ -276,7 +287,7 @@ fun AnimatedProductItem(
             .scale(scale)
             .graphicsLayer { this.alpha = alpha }
             .semantics {
-                contentDescription = "${product.name}, ${if (product.isBought) "bought" else "not bought"}"
+                contentDescription = "Item ${index + 1}: ${product.name}, ${if (product.isBought) "bought" else "not bought"}"
                 stateDescription = if (product.isBought) "Completed" else "Not completed"
                 role = Role.Checkbox
             },
