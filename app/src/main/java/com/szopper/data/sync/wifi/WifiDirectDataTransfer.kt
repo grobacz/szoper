@@ -3,6 +3,7 @@ package com.szopper.data.sync.wifi
 import android.net.wifi.p2p.WifiP2pInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.IOException
@@ -128,5 +129,40 @@ class WifiDirectDataTransfer @Inject constructor() {
         } catch (e: Exception) {
             false
         }
+    }
+
+    
+    suspend fun testConnectionHealth(socket: Socket): Boolean = withContext(Dispatchers.IO) {
+        try {
+            android.util.Log.d("WifiDirectDataTransfer", "Testing connection health")
+            
+            // Send test ping
+            val testMessage = "HEALTH_CHECK_${System.currentTimeMillis()}"
+            val sendSuccess = sendData(socket, testMessage)
+            
+            if (!sendSuccess) {
+                android.util.Log.e("WifiDirectDataTransfer", "Failed to send health check")
+                return@withContext false
+            }
+            
+            // Try to receive echo (for testing purposes, in real scenario this would be handled by protocol)
+            withTimeout(3000) {
+                val response = receiveData(socket)
+                if (response != null) {
+                    android.util.Log.d("WifiDirectDataTransfer", "Connection health check passed")
+                    true
+                } else {
+                    android.util.Log.e("WifiDirectDataTransfer", "No response to health check")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WifiDirectDataTransfer", "Connection health check failed: ${e.message}")
+            false
+        }
+    }
+    
+    fun isSocketConnected(socket: Socket?): Boolean {
+        return socket?.isConnected == true && !socket.isClosed && socket.isInputShutdown.not() && socket.isOutputShutdown.not()
     }
 }

@@ -67,6 +67,25 @@ class SyncProtocolHandler @Inject constructor() {
             data = SyncData.Heartbeat(deviceName)
         )
     }
+
+    
+    fun createPingMessage(deviceId: String): SyncMessage {
+        return SyncMessage(
+            type = MessageType.PING,
+            deviceId = deviceId,
+            timestamp = System.currentTimeMillis(),
+            data = SyncData.Ping()
+        )
+    }
+    
+    fun createPongMessage(deviceId: String): SyncMessage {
+        return SyncMessage(
+            type = MessageType.PONG,
+            deviceId = deviceId,
+            timestamp = System.currentTimeMillis(),
+            data = SyncData.Pong()
+        )
+    }
     
     fun resolveConflicts(
         localProducts: List<SerializableProduct>,
@@ -127,6 +146,8 @@ class SyncProtocolHandler @Inject constructor() {
             MessageType.SYNC_RESPONSE -> message.data is SyncData.SyncResponse
             MessageType.PRODUCT_LIST -> message.data is SyncData.ProductList
             MessageType.HEARTBEAT -> message.data is SyncData.Heartbeat
+            MessageType.PING -> message.data is SyncData.Ping
+            MessageType.PONG -> message.data is SyncData.Pong
             MessageType.DISCONNECT -> true
         }
     }

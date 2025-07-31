@@ -24,6 +24,12 @@ sealed class SyncData {
     
     @Serializable
     data class Heartbeat(val deviceName: String) : SyncData()
+    
+    @Serializable
+    data class Ping(val message: String = "ping") : SyncData()
+    
+    @Serializable
+    data class Pong(val message: String = "pong") : SyncData()
 }
 
 enum class MessageType {
@@ -31,7 +37,9 @@ enum class MessageType {
     SYNC_RESPONSE,
     PRODUCT_LIST,
     HEARTBEAT,
-    DISCONNECT
+    DISCONNECT,
+    PING,
+    PONG
 }
 
 @Serializable

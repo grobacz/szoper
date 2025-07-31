@@ -37,22 +37,70 @@ fi
 
 print_status "Starting Szopper app build and install process..."
 
-# Check for connected devices
+# Function to select target device
+select_device() {
+    local devices=()
+    local device_names=()
+    
+    # Get list of connected devices (excluding header and empty lines)
+    local adb_output
+    adb_output=$(adb devices)
+    
+    while IFS= read -r line; do
+        # Skip empty lines and header
+        if [[ $line =~ ^[[:space:]]*$ ]] || [[ $line == "List of devices attached" ]]; then
+            continue
+        fi
+        
+        # Check if line contains 'device' status (more flexible matching)
+        if [[ $line == *"device"* ]] && [[ ! $line == *"offline"* ]] && [[ ! $line == *"unauthorized"* ]]; then
+            device_id=$(echo "$line" | awk '{print $1}')
+            
+            # Skip if device_id is empty
+            if [[ -n "$device_id" ]]; then
+                devices+=("$device_id")
+            fi
+        fi
+    done <<< "$adb_output"
+    
+    # Get device names in a separate loop to avoid stdin conflicts
+    for device_id in "${devices[@]}"; do
+        device_model=$(adb -s "$device_id" shell getprop ro.product.model 2>/dev/null | tr -d '\r' || echo "Unknown")
+        device_names+=("$device_model")
+    done
+    
+    if [ ${#devices[@]} -eq 0 ]; then
+        print_error "No Android devices connected via ADB!"
+        print_status "Please connect your Android device and enable USB debugging."
+        print_status "Then run: adb devices"
+        exit 1
+    elif [ ${#devices[@]} -eq 1 ]; then
+        SELECTED_DEVICE="${devices[0]}"
+        print_success "Found 1 connected device: ${device_names[0]} (${devices[0]})"
+    else
+        print_status "Multiple devices detected. Please choose:"
+        echo
+        for i in "${!devices[@]}"; do
+            echo "  $((i+1)). ${device_names[i]} (${devices[i]})"
+        done
+        echo
+        
+        while true; do
+            read -p "Enter device number (1-${#devices[@]}): " choice
+            if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#devices[@]} ]; then
+                SELECTED_DEVICE="${devices[$((choice-1))]}"
+                print_success "Selected: ${device_names[$((choice-1))]} (${devices[$((choice-1))]})"
+                break
+            else
+                print_error "Invalid selection. Please enter a number between 1 and ${#devices[@]}."
+            fi
+        done
+    fi
+}
+
+# Check for connected devices and select target
 print_status "Checking for connected Android devices..."
-DEVICE_COUNT=$(adb devices | grep -v "List of devices" | grep -c "device$" || true)
-
-if [ "$DEVICE_COUNT" -eq 0 ]; then
-    print_error "No Android devices connected via ADB!"
-    print_status "Please connect your Android device and enable USB debugging."
-    print_status "Then run: adb devices"
-    exit 1
-elif [ "$DEVICE_COUNT" -gt 1 ]; then
-    print_warning "Multiple devices detected:"
-    adb devices
-    print_status "Using the first available device..."
-fi
-
-print_success "Found $DEVICE_COUNT connected device(s)"
+select_device
 
 # Clean previous builds
 print_status "Cleaning previous builds..."
@@ -92,16 +140,16 @@ APK_SIZE=$(du -h "$APK_PATH" | cut -f1)
 print_status "APK size: $APK_SIZE"
 
 # Install APK
-print_status "Installing APK on device..."
-if adb install -r "$APK_PATH"; then
+print_status "Installing APK on selected device..."
+if adb -s "$SELECTED_DEVICE" install -r "$APK_PATH"; then
     print_success "App installed successfully!"
 else
     print_error "Failed to install APK!"
     print_status "Trying to uninstall and reinstall..."
     
     # Try to uninstall first, then install
-    adb uninstall com.szopper.debug 2>/dev/null || true
-    if adb install "$APK_PATH"; then
+    adb -s "$SELECTED_DEVICE" uninstall com.szopper.debug 2>/dev/null || true
+    if adb -s "$SELECTED_DEVICE" install "$APK_PATH"; then
         print_success "App installed successfully after uninstall!"
     else
         print_error "Installation failed even after uninstall!"
@@ -110,8 +158,8 @@ else
 fi
 
 # Get device info
-DEVICE_MODEL=$(adb shell getprop ro.product.model 2>/dev/null || echo "Unknown")
-ANDROID_VERSION=$(adb shell getprop ro.build.version.release 2>/dev/null || echo "Unknown")
+DEVICE_MODEL=$(adb -s "$SELECTED_DEVICE" shell getprop ro.product.model 2>/dev/null | tr -d '\r' || echo "Unknown")
+ANDROID_VERSION=$(adb -s "$SELECTED_DEVICE" shell getprop ro.build.version.release 2>/dev/null | tr -d '\r' || echo "Unknown")
 
 print_success "Installation completed!"
 print_status "Device: $DEVICE_MODEL (Android $ANDROID_VERSION)"
@@ -123,7 +171,7 @@ read -p "Launch the app now? (Y/n): " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     print_status "Launching Szopper app..."
-    adb shell am start -n com.szopper.debug/com.szopper.presentation.MainActivity
+    adb -s "$SELECTED_DEVICE" shell am start -n com.szopper.debug/com.szopper.presentation.MainActivity
     print_success "App launched!"
 fi
 

@@ -17,12 +17,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.szopper.domain.model.Product
 import com.szopper.presentation.ui.theme.SzopperTheme
 import com.szopper.presentation.viewmodel.ProductListViewModel
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 
 @RunWith(AndroidJUnit4::class)
 class ProductListScreenTest {
@@ -33,7 +34,7 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_displaysProductsCorrectly() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val product1 = Product().apply {
             name = "Milk"
             isBought = false
@@ -44,14 +45,14 @@ class ProductListScreenTest {
         }
         val products = listOf(product1, product2)
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -59,23 +60,23 @@ class ProductListScreenTest {
         composeTestRule.onNodeWithText("Shopping List").assertIsDisplayed()
         composeTestRule.onNodeWithText("Milk").assertIsDisplayed()
         composeTestRule.onNodeWithText("Bread").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Add product").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Reset all products").assertIsDisplayed()
-        composeTestRule.onNodeWithContentDescription("Sync with devices").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Add new product to shopping list").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Reset all products to unbought state").assertIsDisplayed()
+        composeTestRule.onNodeWithContentDescription("Navigate to device synchronization").assertIsDisplayed()
     }
 
     @Test
     fun productListScreen_displaysLoadingState() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(emptyList()))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(true))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        val fakeViewModel = FakeProductListViewModel()
+        fakeViewModel.setProducts(emptyList())
+        fakeViewModel.setLoading(true)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -89,16 +90,16 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_displaysErrorState() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val errorMessage = "Failed to load products"
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(emptyList()))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(errorMessage))
+        fakeViewModel.setProducts(emptyList())
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(errorMessage)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -110,20 +111,20 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_addProductDialogFlow() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(emptyList()))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        val fakeViewModel = FakeProductListViewModel()
+        fakeViewModel.setProducts(emptyList())
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
         // Click add button
-        composeTestRule.onNodeWithContentDescription("Add product").performClick()
+        composeTestRule.onNodeWithContentDescription("Add new product to shopping list").performClick()
 
         // Then - Dialog should be displayed
         composeTestRule.onNodeWithText("Add Product").assertIsDisplayed()
@@ -135,30 +136,31 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_addProductDialogCancel() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(emptyList()))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        val fakeViewModel = FakeProductListViewModel()
+        fakeViewModel.setProducts(emptyList())
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
         // Open dialog and cancel
-        composeTestRule.onNodeWithContentDescription("Add product").performClick()
+        composeTestRule.onNodeWithContentDescription("Add new product to shopping list").performClick()
+        composeTestRule.onNodeWithText("Add Product").assertIsDisplayed() // Verify dialog is shown
         composeTestRule.onNodeWithText("Cancel").performClick()
 
-        // Then - Dialog should be dismissed
-        composeTestRule.onNodeWithText("Add Product").assertIsNotDisplayed()
+        // Then - Dialog should be dismissed (node should not exist anymore)
+        composeTestRule.onNodeWithText("Add Product").assertDoesNotExist()
     }
 
     @Test
     fun productListScreen_productItemDisplaysBoughtState() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val boughtProduct = Product().apply {
             name = "Bought Item"
             isBought = true
@@ -169,14 +171,14 @@ class ProductListScreenTest {
         }
         val products = listOf(boughtProduct, unboughtProduct)
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -192,7 +194,7 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_dragAndDropReordersItems() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val product1 = Product().apply {
             name = "First Item"
             isBought = false
@@ -210,14 +212,14 @@ class ProductListScreenTest {
         }
         val products = listOf(product1, product2, product3)
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -241,7 +243,7 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_longPressStartsDragMode() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val product = Product().apply {
             name = "Draggable Item"
             isBought = false
@@ -249,14 +251,14 @@ class ProductListScreenTest {
         }
         val products = listOf(product)
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -275,7 +277,7 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_multipleItemsCanBeDragged() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val products = (1..5).map { i ->
             Product().apply {
                 name = "Item $i"
@@ -284,14 +286,14 @@ class ProductListScreenTest {
             }
         }
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 
@@ -312,7 +314,7 @@ class ProductListScreenTest {
     @Test
     fun productListScreen_dragAndDropWorksWithBoughtItems() {
         // Given
-        val mockViewModel = mock<ProductListViewModel>()
+        val fakeViewModel = FakeProductListViewModel()
         val boughtProduct = Product().apply {
             name = "Bought Item"
             isBought = true
@@ -325,14 +327,14 @@ class ProductListScreenTest {
         }
         val products = listOf(boughtProduct, unboughtProduct)
         
-        whenever(mockViewModel.products).thenReturn(MutableStateFlow(products))
-        whenever(mockViewModel.isLoading).thenReturn(MutableStateFlow(false))
-        whenever(mockViewModel.error).thenReturn(MutableStateFlow(null))
+        fakeViewModel.setProducts(products)
+        fakeViewModel.setLoading(false)
+        fakeViewModel.setError(null)
 
         // When
         composeTestRule.setContent {
             SzopperTheme {
-                ProductListScreen(viewModel = mockViewModel)
+                ProductListScreen(viewModel = fakeViewModel)
             }
         }
 

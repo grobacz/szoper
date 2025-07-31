@@ -24,12 +24,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.szopper.domain.model.Product
+import com.szopper.presentation.viewmodel.IProductListViewModel
 import com.szopper.presentation.viewmodel.ProductListViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun ProductListScreen(
-    viewModel: ProductListViewModel = hiltViewModel(),
+    viewModel: IProductListViewModel = hiltViewModel<ProductListViewModel>(),
     onNavigateToSync: () -> Unit = {}
 ) {
     val products by viewModel.products.collectAsState()

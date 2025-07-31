@@ -1,8 +1,8 @@
 package com.szopper.data.sync
 
-import android.bluetooth.BluetoothSocket
+import android.content.Context
 import android.net.wifi.p2p.WifiP2pInfo
-import com.szopper.data.sync.bluetooth.BluetoothDataTransfer
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.szopper.data.sync.wifi.WifiDirectDataTransfer
 import com.szopper.domain.model.Product
 import com.szopper.domain.sync.DeviceInfo
@@ -10,6 +10,7 @@ import com.szopper.domain.sync.DeviceType
 import com.szopper.domain.sync.MessageType
 import com.szopper.domain.sync.SerializableProduct
 import com.szopper.domain.sync.SyncData
+import com.szopper.domain.sync.SyncMessage
 import com.szopper.domain.sync.toSerializable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
@@ -21,8 +22,8 @@ import javax.inject.Singleton
 @Singleton
 class DataTransferManager @Inject constructor(
     private val wifiDirectDataTransfer: WifiDirectDataTransfer,
-    private val bluetoothDataTransfer: BluetoothDataTransfer,
-    private val syncProtocolHandler: SyncProtocolHandler
+    private val syncProtocolHandler: SyncProtocolHandler,
+    @ApplicationContext private val context: Context
 ) {
     
     private var currentConnection: Any? = null
@@ -33,69 +34,35 @@ class DataTransferManager @Inject constructor(
         deviceInfo: DeviceInfo,
         connectionInfo: Any? = null
     ): Boolean {
-        return when (deviceInfo.type) {
-            DeviceType.WIFI_DIRECT -> {
-                val wifiInfo = connectionInfo as? WifiP2pInfo
-                if (wifiInfo != null) {
-                    val socket = wifiDirectDataTransfer.establishConnection(wifiInfo)
-                    if (socket != null) {
-                        isServer = wifiInfo.isGroupOwner
-                        val handshakeSuccess = wifiDirectDataTransfer.performHandshake(socket, isServer)
-                        if (handshakeSuccess) {
-                            currentConnection = socket
-                            currentDeviceType = DeviceType.WIFI_DIRECT
-                            true
-                        } else {
-                            socket.close()
-                            false
-                        }
-                    } else {
-                        false
-                    }
+        android.util.Log.d("DataTransferManager", "Establishing WiFi Direct connection to ${deviceInfo.name}")
+        val wifiInfo = connectionInfo as? WifiP2pInfo
+        if (wifiInfo != null) {
+            android.util.Log.d("DataTransferManager", "WiFi info available, establishing socket connection")
+            val socket = wifiDirectDataTransfer.establishConnection(wifiInfo)
+            if (socket != null) {
+                android.util.Log.d("DataTransferManager", "Socket established, performing handshake")
+                isServer = wifiInfo.isGroupOwner
+                val handshakeSuccess = wifiDirectDataTransfer.performHandshake(socket, isServer)
+                if (handshakeSuccess) {
+                    android.util.Log.d("DataTransferManager", "Handshake successful for WiFi Direct")
+                    currentConnection = socket
+                    currentDeviceType = DeviceType.WIFI_DIRECT
+                    return true
                 } else {
-                    false
+                    android.util.Log.e("DataTransferManager", "Handshake failed for WiFi Direct")
+                    socket.close()
+                    return false
                 }
+            } else {
+                return false
             }
-            DeviceType.BLUETOOTH -> {
-                // For Bluetooth, we need to determine if we should be server or client
-                // For simplicity, device with lexicographically smaller address becomes server
-                val shouldBeServer = deviceInfo.id < android.provider.Settings.Secure.getString(
-                    null, // This would need proper context injection
-                    android.provider.Settings.Secure.ANDROID_ID
-                ) ?: ""
-                
-                val socket = if (shouldBeServer) {
-                    bluetoothDataTransfer.startServer()
-                    bluetoothDataTransfer.waitForClient()
-                } else {
-                    if (bluetoothDataTransfer.connectToDevice(deviceInfo.id)) {
-                        bluetoothDataTransfer.getCurrentClientSocket()
-                    } else {
-                        null
-                    }
-                }
-                
-                if (socket != null) {
-                    isServer = shouldBeServer
-                    val handshakeSuccess = bluetoothDataTransfer.performHandshake(socket, isServer)
-                    if (handshakeSuccess) {
-                        currentConnection = socket
-                        currentDeviceType = DeviceType.BLUETOOTH
-                        true
-                    } else {
-                        socket.close()
-                        false
-                    }
-                } else {
-                    false
-                }
-            }
+        } else {
+            return false
         }
     }
     
     suspend fun sendProducts(products: List<Product>): Boolean {
         val connection = currentConnection ?: return false
-        val deviceType = currentDeviceType ?: return false
         
         try {
             val serializableProducts = products.map { it.toSerializable() }
@@ -105,14 +72,7 @@ class DataTransferManager @Inject constructor(
             )
             val messageString = syncProtocolHandler.serializeMessage(message)
             
-            return when (deviceType) {
-                DeviceType.WIFI_DIRECT -> {
-                    wifiDirectDataTransfer.sendData(connection as Socket, messageString)
-                }
-                DeviceType.BLUETOOTH -> {
-                    bluetoothDataTransfer.sendData(connection as BluetoothSocket, messageString)
-                }
-            }
+            return wifiDirectDataTransfer.sendData(connection as Socket, messageString)
         } catch (e: Exception) {
             return false
         }
@@ -120,17 +80,9 @@ class DataTransferManager @Inject constructor(
     
     suspend fun receiveProducts(): List<SerializableProduct>? {
         val connection = currentConnection ?: return null
-        val deviceType = currentDeviceType ?: return null
         
         try {
-            val messageString = when (deviceType) {
-                DeviceType.WIFI_DIRECT -> {
-                    wifiDirectDataTransfer.receiveData(connection as Socket)
-                }
-                DeviceType.BLUETOOTH -> {
-                    bluetoothDataTransfer.receiveData(connection as BluetoothSocket)
-                }
-            }
+            val messageString = wifiDirectDataTransfer.receiveData(connection as Socket)
             
             messageString?.let { msg ->
                 val message = syncProtocolHandler.deserializeMessage(msg)
@@ -156,14 +108,10 @@ class DataTransferManager @Inject constructor(
                 )
                 val requestString = syncProtocolHandler.serializeMessage(syncRequest)
                 
-                val sendSuccess = when (currentDeviceType) {
-                    DeviceType.WIFI_DIRECT -> {
-                        wifiDirectDataTransfer.sendData(currentConnection as Socket, requestString)
-                    }
-                    DeviceType.BLUETOOTH -> {
-                        bluetoothDataTransfer.sendData(currentConnection as BluetoothSocket, requestString)
-                    }
-                    null -> false
+                val sendSuccess = if (currentDeviceType == DeviceType.WIFI_DIRECT) {
+                    wifiDirectDataTransfer.sendData(currentConnection as Socket, requestString)
+                } else {
+                    false
                 }
                 
                 if (!sendSuccess) return@withTimeout null
@@ -196,15 +144,7 @@ class DataTransferManager @Inject constructor(
     
     fun disconnect() {
         currentConnection?.let {
-            when (currentDeviceType) {
-                DeviceType.WIFI_DIRECT -> {
-                    wifiDirectDataTransfer.closeConnections()
-                }
-                DeviceType.BLUETOOTH -> {
-                    bluetoothDataTransfer.closeConnections()
-                }
-                null -> {}
-            }
+            wifiDirectDataTransfer.closeConnections()
         }
         currentConnection = null
         currentDeviceType = null
@@ -226,6 +166,76 @@ class DataTransferManager @Inject constructor(
             position = serializable.position
             createdAt = serializable.createdAt
             updatedAt = serializable.updatedAt
+        }
+    }
+
+    
+    suspend fun validateConnection(): Boolean {
+        val connection = currentConnection ?: return false
+        
+        return try {
+            android.util.Log.d("DataTransferManager", "Validating connection with ping/pong test")
+            
+            // Send ping message
+            val pingMessage = syncProtocolHandler.createPingMessage(getDeviceId())
+            val pingSuccess = if (currentDeviceType == DeviceType.WIFI_DIRECT) {
+                wifiDirectDataTransfer.sendData(connection as Socket, 
+                    syncProtocolHandler.serializeMessage(pingMessage))
+            } else {
+                false
+            }
+            
+            if (!pingSuccess) {
+                android.util.Log.e("DataTransferManager", "✗ Failed to send ping message")
+                return false
+            }
+            
+            // Wait for pong response with timeout
+            withTimeout(5000) {
+                val response = if (currentDeviceType == DeviceType.WIFI_DIRECT) {
+                    wifiDirectDataTransfer.receiveData(connection as Socket)
+                } else {
+                    null
+                }
+                
+                response?.let { responseStr ->
+                    val message = syncProtocolHandler.deserializeMessage(responseStr)
+                    if (message?.type == MessageType.PONG) {
+                        android.util.Log.d("DataTransferManager", "✓ Connection validation successful")
+                        true
+                    } else {
+                        android.util.Log.e("DataTransferManager", "✗ Invalid pong response")
+                        false
+                    }
+                } ?: run {
+                    android.util.Log.e("DataTransferManager", "✗ No pong response received")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DataTransferManager", "✗ Connection validation failed: ${e.message}")
+            false
+        }
+    }
+    
+    suspend fun handleIncomingPing(message: SyncMessage): Boolean {
+        if (message.type != MessageType.PING) return false
+        
+        val connection = currentConnection ?: return false
+        
+        try {
+            android.util.Log.d("DataTransferManager", "Responding to ping with pong")
+            val pongMessage = syncProtocolHandler.createPongMessage(getDeviceId())
+            
+            return if (currentDeviceType == DeviceType.WIFI_DIRECT) {
+                wifiDirectDataTransfer.sendData(connection as Socket, 
+                    syncProtocolHandler.serializeMessage(pongMessage))
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DataTransferManager", "Failed to send pong response: ${e.message}")
+            return false
         }
     }
 }

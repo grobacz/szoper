@@ -26,16 +26,16 @@ class ProductListViewModel @Inject constructor(
     private val resetAllProductsUseCase: ResetAllProductsUseCase,
     private val reorderProductsUseCase: ReorderProductsUseCase,
     private val deleteProductUseCase: DeleteProductUseCase
-) : ViewModel() {
+) : ViewModel(), IProductListViewModel {
 
     private val _products = MutableStateFlow<List<Product>>(emptyList())
-    val products: StateFlow<List<Product>> = _products.asStateFlow()
+    override val products: StateFlow<List<Product>> = _products.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    override val error: StateFlow<String?> = _error.asStateFlow()
 
     // Undo functionality - store recently deleted items
     private val _recentlyDeleted = MutableStateFlow<Map<ObjectId, Product>>(emptyMap())
@@ -61,7 +61,7 @@ class ProductListViewModel @Inject constructor(
         }
     }
 
-    fun addProduct(name: String) {
+    override fun addProduct(name: String) {
         viewModelScope.launch {
             try {
                 addProductUseCase(name)
@@ -71,7 +71,7 @@ class ProductListViewModel @Inject constructor(
         }
     }
 
-    fun toggleProductBought(id: ObjectId) {
+    override fun toggleProductBought(id: ObjectId) {
         viewModelScope.launch {
             try {
                 toggleProductBoughtUseCase(id)
@@ -81,7 +81,7 @@ class ProductListViewModel @Inject constructor(
         }
     }
 
-    fun resetAllProducts() {
+    override fun resetAllProducts() {
         viewModelScope.launch {
             try {
                 resetAllProductsUseCase()
@@ -91,7 +91,7 @@ class ProductListViewModel @Inject constructor(
         }
     }
 
-    fun reorderProducts(products: List<Product>) {
+    override fun reorderProducts(products: List<Product>) {
         viewModelScope.launch {
             try {
                 val productPositions = products.mapIndexed { index, product ->
@@ -111,7 +111,7 @@ class ProductListViewModel @Inject constructor(
     /**
      * Deletes a product and stores it temporarily for undo functionality
      */
-    fun deleteProduct(product: Product) {
+    override fun deleteProduct(product: Product) {
         viewModelScope.launch {
             try {
                 // Store product for undo functionality
@@ -138,7 +138,7 @@ class ProductListViewModel @Inject constructor(
     /**
      * Restores a recently deleted product
      */
-    fun undoDelete(productId: ObjectId) {
+    override fun undoDelete(productId: ObjectId) {
         viewModelScope.launch {
             try {
                 val deletedProduct = _recentlyDeleted.value[productId]

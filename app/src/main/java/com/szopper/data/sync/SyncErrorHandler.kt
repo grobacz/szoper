@@ -16,6 +16,11 @@ class SyncErrorHandler @Inject constructor() {
         object SerializationError : SyncError("Failed to serialize/deserialize data")
         object ConflictResolutionFailed : SyncError("Failed to resolve data conflicts")
         object UnknownDevice : SyncError("Unknown or incompatible device")
+        object WiFiP2pNotAvailable : SyncError("WiFi Direct not available on this device")
+        object ServiceRegistrationFailed : SyncError("Failed to register discovery service")
+        object DiscoveryFailed : SyncError("Device discovery failed")
+        object ValidationFailed : SyncError("Connection validation failed")
+        object PingTimeout : SyncError("Connection ping test timed out")
         class NetworkError(message: String, cause: Throwable? = null) : SyncError(message, cause)
         class ProtocolError(message: String) : SyncError(message)
         class UnexpectedError(cause: Throwable) : SyncError("Unexpected error occurred", cause)
@@ -51,6 +56,11 @@ class SyncErrorHandler @Inject constructor() {
             is SyncError.SerializationError -> "Error processing shopping list data. Please restart the app and try again."
             is SyncError.ConflictResolutionFailed -> "Could not merge shopping lists. Please try again."
             is SyncError.UnknownDevice -> "The device is not compatible with Szopper sync."
+            is SyncError.WiFiP2pNotAvailable -> "WiFi Direct is not available on this device. Please check your device settings."
+            is SyncError.ServiceRegistrationFailed -> "Could not make device discoverable. Please try restarting sync."
+            is SyncError.DiscoveryFailed -> "Could not discover nearby devices. Please check WiFi and location settings."
+            is SyncError.ValidationFailed -> "Connection test failed. The device may not be running Szopper."
+            is SyncError.PingTimeout -> "Device is not responding. Please check the connection and try again."
             is SyncError.NetworkError -> "Network error: ${error.message}"
             is SyncError.ProtocolError -> "Communication error: ${error.message}"
             is SyncError.UnexpectedError -> "An unexpected error occurred. Please try again."
@@ -68,6 +78,11 @@ class SyncErrorHandler @Inject constructor() {
             is SyncError.SerializationError -> false
             is SyncError.ConflictResolutionFailed -> true
             is SyncError.UnknownDevice -> false
+            is SyncError.WiFiP2pNotAvailable -> false
+            is SyncError.ServiceRegistrationFailed -> true
+            is SyncError.DiscoveryFailed -> true
+            is SyncError.ValidationFailed -> true
+            is SyncError.PingTimeout -> true
             is SyncError.NetworkError -> true
             is SyncError.ProtocolError -> false
             is SyncError.UnexpectedError -> true

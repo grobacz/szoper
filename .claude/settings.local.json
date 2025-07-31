@@ -26,7 +26,21 @@
       "mcp__mobile__mobile_take_screenshot",
       "mcp__mobile__mobile_press_button",
       "Bash(chmod:*)",
-      "Bash(./quick_install.sh:*)"
+      "Bash(./quick_install.sh:*)",
+      "Bash(./build_and_install.sh)",
+      "Bash(/home/grobacz/projects/Szopper/debug_devices.sh:*)",
+      "mcp__serena__find_symbol",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__insert_after_symbol",
+      "mcp__serena__search_for_pattern",
+      "Bash(ANDROID_SERIAL=192.168.1.206:38847 ./gradlew installDebug)",
+      "Bash(ANDROID_SERIAL=adb-RF8N8296S2B-0Z15xz._adb-tls-connect._tcp ./gradlew installDebug)",
+      "mcp__mobile__mobile_launch_app",
+      "mcp__mobile__mobile_click_on_screen_at_coordinates",
+      "mcp__mobile__mobile_list_elements_on_screen",
+      "mcp__serena__replace_regex",
+      "Bash(timeout 30 adb:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }
